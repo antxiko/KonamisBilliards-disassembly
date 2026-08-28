@@ -591,9 +591,9 @@ estado_12_fin_de_tacada:		; Espera a que se apague el canal de sonido y decide: 
 	ld a,(0e024h)		;44d3   ; 0xE024 es el canal de sonido de mas peso
 	cp 005h		;44d6   ; el 5 es el golpe de bola: hasta que no acabe no se decide nada
 	ret z			;44d8
-	ld a,(0e1adh)		;44d9   ; 0xE1AD: hay multiplicador de apuesta pendiente
+	ld a,(0e1adh)		;44d9   ; 0xE1AD: la blanca cayo en una tronera
 	and a			;44dc
-	call nz,ensena_el_rate		;44dd
+	call nz,devuelve_las_bolas_a_la_mesa		;44dd
 	ld a,001h		;44e0
 	ld (0e1b6h),a		;44e2   ; 0xE1B6 a uno: la proxima llamada a coloca_las_bolas NO recolocara
 	xor a			;44e5
@@ -742,7 +742,7 @@ DATA_valores_iniciales_de_la_partida:
 
 coloca_las_bolas:		; Pinta la mesa y reparte los ocho registros de 0x461F en los registros de bola de 0xE100 (dieciseis bytes por bola)
 	call pinta_la_mesa		;45d0   ; el fieltro y las bandas
-	call L_5314		;45d3
+	call pinta_la_barra_de_fuerza		;45d3
 	ld hl,0e1b6h		;45d6   ; 0xE1B6 lo pone el fin de tacada: entonces las bolas se quedan donde estan
 	ld a,(hl)			;45d9
 	ld (hl),000h		;45da   ; se gasta al leerlo
@@ -755,7 +755,7 @@ L_45E6:
 	ld (hl),000h		;45e6
 	inc hl			;45e8
 	djnz L_45E6		;45e9
-	call L_59C8		;45eb
+	call pinta_las_bolas_embocadas		;45eb
 	ld hl,0e100h		;45ee   ; los registros de bola, de dieciseis bytes cada uno
 	ld de,0461fh		;45f1   ; la tabla de arranque, de cuatro bytes por bola
 	ld b,008h		;45f4   ; las ocho bolas
@@ -813,7 +813,7 @@ DATA_posiciones_iniciales_de_las_bolas:
 
 
 refresca_los_sprites:		; Vuelca el estado de las bolas de 0xE100 a los atributos de sprite de la VRAM
-	call L_51FF		;463f
+	call paso_de_la_partida		;463f
 L_4642:
 	ld a,(0e00ah)		;4642   ; la entrada que usa el estado 10 mientras espera: refresca sin tocar la fisica
 	and a			;4645   ; 0xE00A distinto de cero: hay una animacion pintando y los sprites no se tocan
@@ -913,63 +913,63 @@ restaura_el_borde:		; Registro 7 = 0xE0
 	jp 00047h		;46ca   ; BIOS WRTVDP - Writes data in the VDP-register
 copia_a_vram:		; BC bytes desde HL a la direccion DE, por el puerto de datos
 	call abre_la_vram_para_escribir		;46cd
-L_46D0:
-	ld a,(hl)			;46d0
+cuerpo_de_copia_a_vram:		; El bucle de copia, sin abrir la VRAM: lo reaprovecha el interprete del formato B para soltar sus tramos de literales.
+	ld a,(hl)			;46d0   ; el byte
 	exx			;46d1
-	out (c),a		;46d2
+	out (c),a		;46d2   ; al puerto de datos, que el VDP ya va autoincrementando
 	exx			;46d4
-	inc hl			;46d5
+	inc hl			;46d5   ; el origen avanza
 	dec bc			;46d6
-	ld a,b			;46d7
+	ld a,b			;46d7   ; y la cuenta baja
 	or c			;46d8
-	jr nz,L_46D0		;46d9
+	jr nz,cuerpo_de_copia_a_vram		;46d9
 	ret			;46db
 rellena_vram:		; Escribe BC veces el byte A desde la direccion DE
 	ld h,a			;46dc
 	call abre_la_vram_para_escribir		;46dd
 L_46E0:
-	ld a,h			;46e0
+	ld a,h			;46e0   ; siempre el mismo byte
 	exx			;46e1
 	out (c),a		;46e2
 	exx			;46e4
-	dec bc			;46e5
+	dec bc			;46e5   ; hasta agotar la cuenta
 	ld a,b			;46e6
 	or c			;46e7
 	jr nz,L_46E0		;46e8
 	ret			;46ea
 cortina_de_borrado:		; Borra la pantalla una columna por cuadro segun el contador de 0xE004; devuelve signo cuando ha terminado
-	ld a,001h		;46eb
+	ld a,001h		;46eb   ; 0xE00A a uno: mientras corre la cortina, los sprites no se refrescan
 	ld (0e00ah),a		;46ed
-	ld d,038h		;46f0
+	ld d,038h		;46f0   ; la tabla de nombres
 	ld hl,0e004h		;46f2
-	ld b,018h		;46f5
-	bit 6,(hl)		;46f7
+	ld b,018h		;46f5   ; 24 filas de alto
+	bit 6,(hl)		;46f7   ; el bit 6 de 0xE004 hace de conmutador entre las dos mitades de cada paso
 	jr nz,L_4703		;46f9
-	ld a,01fh		;46fb
+	ld a,01fh		;46fb   ; la columna 31 menos el contador: la cortina viene tambien desde la derecha
 	sub (hl)			;46fd
 	ld e,a			;46fe
-	set 6,(hl)		;46ff
-	jr L_4708		;4701
+	set 6,(hl)		;46ff   ; y deja marcado que la proxima vez toca la otra
+	jr cortina_recorta_por_el_marcador		;4701
 L_4703:
-	res 6,(hl)		;4703
-	dec (hl)			;4705
-	ret m			;4706
-	ld e,(hl)			;4707
-L_4708:
+	res 6,(hl)		;4703   ; la segunda mitad del paso
+	dec (hl)			;4705   ; y aqui es donde el contador baja de verdad, un cuadro de cada dos
+	ret m			;4706   ; pasado de cero: la cortina ha terminado
+	ld e,(hl)			;4707   ; la columna que toca por la izquierda
+cortina_recorta_por_el_marcador:		; Del estado 12 en adelante la cortina no borra la pantalla entera: empieza tres filas mas abajo y solo se lleva 21, para dejar el marcador de arriba en su sitio.
 	ld a,(0e000h)		;4708
-	cp 00ch		;470b
+	cp 00ch		;470b   ; el estado 12 es el primero con marcador que respetar
 	jr c,L_4715		;470d
-	ld a,060h		;470f
+	ld a,060h		;470f   ; 0x60: tres filas mas abajo
 	add a,e			;4711
 	ld e,a			;4712
-	ld b,015h		;4713
+	ld b,015h		;4713   ; y solo 21 filas
 L_4715:
-	xor a			;4715
+	xor a			;4715   ; el tile en blanco
 	call escribe_en_vram		;4716
-	ld a,020h		;4719
+	ld a,020h		;4719   ; 32 bytes: la fila de debajo
 	call suma_a_a_de		;471b
-	djnz L_4715		;471e
-	ld de,03b00h		;4720
+	djnz L_4715		;471e   ; la columna entera
+	ld de,03b00h		;4720   ; y de paso corta la lista de sprites
 	ld a,0d0h		;4723
 	call escribe_en_vram		;4725
 	xor a			;4728   ; la cortina devuelve cero al terminar
@@ -1125,7 +1125,7 @@ refresca_el_marcador:		; Pinta los rotulos del marcador y los numeros: 1P, 2P si
 L_480C:
 	call pinta_ball_y_reserva		;480c   ; las bolas de reserva
 	call pinta_el_numero_de_fase		;480f   ; y el numero de fase
-	call L_52E5		;4812
+	call pinta_los_intentos		;4812
 pinta_el_record:		; Las seis cifras BCD de 0xE040-0xE042 en la fila 0 columnas 15-20, detras del rotulo HI.
 	ld hl,0e042h		;4815   ; el record: 0xE042 es el byte alto, y el bucle va hacia atras
 	ld de,0380fh		;4818   ; fila 0, columna 15, detras del HI
@@ -1190,13 +1190,13 @@ L_486D:
 	ld l,a			;4877
 	ld c,a			;4878
 L_4879:
-	ld a,h			;4879
-	call escribe_en_vram		;487a
+	ld a,h			;4879   ; el tile del "1" o el "2"
+	call escribe_en_vram		;487a   ; arriba, en la fila del jugador
 	inc de			;487d
-	ld a,l			;487e
+	ld a,l			;487e   ; la "P"
 	call escribe_en_vram		;487f
 	ld a,c			;4882
-	inc de			;4883
+	inc de			;4883   ; y el separador
 	call escribe_en_vram		;4884
 	ret			;4887
 pinta_ball_y_reserva:		; El rotulo BALL de 0x48AC y el numero de bolas de reserva (0xE050)
@@ -1378,7 +1378,7 @@ L_4983:
 	res 7,a		;4983   ; con el bit 7, lo que queda es cuantos literales vienen
 	ld c,a			;4985
 	ld b,000h		;4986
-	call L_46D0		;4988   ; y se copian tal cual con el cuerpo de copia_a_vram
+	call cuerpo_de_copia_a_vram		;4988   ; y se copian tal cual con el cuerpo de copia_a_vram
 	jr L_496C		;498b
 
 ; ----------------------------------------------------------------------
@@ -1597,16 +1597,16 @@ L_4D13:
 	ld l,a			;4d22
 	ex af,af'			;4d23
 L_4D24:
-	ex af,af'			;4d24
-	ld h,l			;4d25
+	ex af,af'			;4d24   ; el mismo tratamiento para dX
+	ld h,l			;4d25   ; el byte alto, que es dividir despues con ocho bits de fraccion
 	ld l,000h		;4d26
-	ld e,c			;4d28
-	call divide_hl_entre_bc		;4d29
+	ld e,c			;4d28   ; el byte bajo de la distancia
+	call divide_hl_entre_bc		;4d29   ; dX * 256 / distancia
 	ex af,af'			;4d2c
-	and a			;4d2d
+	and a			;4d2d   ; habia que darle la vuelta?
 	ld h,000h		;4d2e
 	jr z,L_4D37		;4d30
-	dec h			;4d32
+	dec h			;4d32   ; pues complemento a dos
 	ld a,l			;4d33
 	cpl			;4d34
 	ld l,a			;4d35
@@ -1683,7 +1683,7 @@ L_4DB4:
 	and (hl)			;4db6   ; y el +1 si le queda energia: hacen falta las dos
 	dec hl			;4db7
 	ld (0e194h),hl		;4db8   ; la rutina de mover trabaja con 0xE194
-	call nz,L_4E6B		;4dbb   ; quieta o embocada, no se toca
+	call nz,mueve_una_bola		;4dbb   ; quieta o embocada, no se toca
 	ld hl,(0e194h)		;4dbe
 	ld a,010h		;4dc1   ; la bola siguiente, dieciseis bytes mas alla
 	add a,l			;4dc3
@@ -1698,7 +1698,7 @@ L_4DCD:
 	inc hl			;4dd1
 	and (hl)			;4dd2
 	dec hl			;4dd3
-	call nz,L_53DD		;4dd4
+	call nz,frena_una_bola		;4dd4
 	ld hl,(0e194h)		;4dd7
 	ld a,010h		;4dda
 	add a,l			;4ddc
@@ -1784,170 +1784,170 @@ L_4E5A:
 	ld a,00fh		;4e65   ; y el estado 15
 	ld (0e000h),a		;4e67
 	ret			;4e6a
-L_4E6B:
-	push hl			;4e6b
+mueve_una_bola:		; Un paso de una bola: le suma la velocidad a la posicion -las dos de 16 bits, con el byte bajo haciendo de fraccion-, mira si se ha salido de las bandas y, si se ha salido por donde hay tronera, se va a la rutina que la emboca; si no, la rebota reflejandola contra la banda y le da la vuelta a la velocidad. La mesa va de X=0x14 a X=0xD8 y de Y=0x3E a Y=0xA1. Al terminar busca choques con las otras bolas (0x4F25).
+	push hl			;4e6b   ; IX es la base del registro de esta bola
 	pop ix		;4e6c
-	inc hl			;4e6e
+	inc hl			;4e6e   ; al +3: el byte bajo de la Y
 	inc hl			;4e6f
 	inc hl			;4e70
-	ld e,l			;4e71
+	ld e,l			;4e71   ; DE recorre la posicion
 	ld d,h			;4e72
-	ld a,004h		;4e73
+	ld a,004h		;4e73   ; y HL la velocidad, en el +7
 	add a,l			;4e75
 	ld l,a			;4e76
-	ld a,(de)			;4e77
+	ld a,(de)			;4e77   ; la posicion es de 16 bits y el byte bajo es la fraccion de pixel
 	add a,(hl)			;4e78
 	ld (de),a			;4e79
 	inc hl			;4e7a
 	inc de			;4e7b
 	ld a,(de)			;4e7c
-	adc a,(hl)			;4e7d
+	adc a,(hl)			;4e7d   ; el acarreo sube al byte entero, que es el que ve el sprite
 	ld (de),a			;4e7e
 	inc hl			;4e7f
 	inc de			;4e80
 	ld a,(de)			;4e81
-	add a,(hl)			;4e82
+	add a,(hl)			;4e82   ; y lo mismo con la X
 	ld (de),a			;4e83
 	inc de			;4e84
 	inc hl			;4e85
 	ld a,(de)			;4e86
 	adc a,(hl)			;4e87
 	ld (de),a			;4e88
-	call L_4F25		;4e89
+	call busca_choques		;4e89   ; movida, a ver si ha chocado con alguna
 	ld hl,(0e194h)		;4e8c
 	ld d,h			;4e8f
 	ld e,l			;4e90
-	ld a,006h		;4e91
+	ld a,006h		;4e91   ; DE al +6: la X entera
 	add a,e			;4e93
 	ld e,a			;4e94
-	ld a,00ah		;4e95
+	ld a,00ah		;4e95   ; y HL al +10
 	add a,l			;4e97
 	ld l,a			;4e98
 	ld a,(de)			;4e99
 	ld c,a			;4e9a
-	sub 014h		;4e9b
-	sub 0c5h		;4e9d
-	jr c,L_4ECE		;4e9f
-	dec de			;4ea1
+	sub 014h		;4e9b   ; la banda izquierda esta en X=0x14
+	sub 0c5h		;4e9d   ; y hay 0xC5 pixeles hasta la derecha
+	jr c,L_4ECE		;4e9f   ; dentro de la mesa a lo ancho: pasa a mirar la Y
+	dec de			;4ea1   ; se ha salido; DE al +4 para ver por donde
 	dec de			;4ea2
 	ex af,af'			;4ea3
 	ld a,(de)			;4ea4
 	ld b,a			;4ea5
-	cp 045h		;4ea6
-	jp c,L_5880		;4ea8
-	cp 09dh		;4eab
-	jp nc,L_589A		;4ead
+	cp 045h		;4ea6   ; por encima de la banda de arriba de la mesa
+	jp c,boca_de_la_banda_izquierda		;4ea8   ; esa es la tronera de una esquina de arriba
+	cp 09dh		;4eab   ; o por debajo de la de abajo
+	jp nc,boca_de_la_banda_derecha		;4ead   ; y la de una esquina de abajo
 	ex af,af'			;4eb0
 	inc de			;4eb1
 	inc de			;4eb2
-	cp 010h		;4eb3
+	cp 010h		;4eb3   ; cuanto se ha pasado por la derecha
 	jr c,L_4EB9		;4eb5
-	add a,0c5h		;4eb7
+	add a,0c5h		;4eb7   ; o, si fue por la izquierda, cuanto por alli
 L_4EB9:
-	add a,a			;4eb9
-	jr nz,L_4EBD		;4eba
+	add a,a			;4eb9   ; el doble: lo que hay que devolverla para reflejarla
+	jr nz,L_4EBD		;4eba   ; justo encima de la banda, se la empuja un pixel
 	inc a			;4ebc
 L_4EBD:
 	ld b,a			;4ebd
 	ld a,(de)			;4ebe
-	sub b			;4ebf
+	sub b			;4ebf   ; la X se refleja contra la banda
 	ld (de),a			;4ec0
-	call L_4F19		;4ec1
+	call niega_la_velocidad		;4ec1   ; y la velocidad cambia de sentido
 	push hl			;4ec4
 	push de			;4ec5
-	call L_4F14		;4ec6
+	call olvida_con_quien_choco		;4ec6   ; el rebote cuenta como choque nuevo
 	call L_4F05		;4ec9
 	pop de			;4ecc
 	pop hl			;4ecd
 L_4ECE:
-	dec hl			;4ece
+	dec hl			;4ece   ; HL al +8 y DE al +4: ahora la Y
 	dec hl			;4ecf
 	dec de			;4ed0
 	dec de			;4ed1
 	ld a,(de)			;4ed2
 	ld b,a			;4ed3
-	sub 03eh		;4ed4
-	sub 064h		;4ed6
-	ret c			;4ed8
+	sub 03eh		;4ed4   ; la banda de arriba esta en Y=0x3E
+	sub 064h		;4ed6   ; y hay 0x64 pixeles hasta la de abajo
+	ret c			;4ed8   ; dentro: no hay nada que hacer
 	inc de			;4ed9
 	inc de			;4eda
 	ex af,af'			;4edb
 	ld a,(de)			;4edc
 	ld c,a			;4edd
-	cp 01fh		;4ede
-	jp c,L_58B3		;4ee0
-	cp 0d5h		;4ee3
-	jp nc,L_5908		;4ee5
-	sub 070h		;4ee8
+	cp 01fh		;4ede   ; pegada a la banda izquierda: tronera de esquina
+	jp c,boca_de_la_banda_de_arriba		;4ee0
+	cp 0d5h		;4ee3   ; o a la derecha
+	jp nc,boca_de_la_banda_de_abajo		;4ee5
+	sub 070h		;4ee8   ; y el centro de la banda
 	cp 010h		;4eea
-	jp c,L_58CD		;4eec
+	jp c,boquilla_de_la_tronera_central		;4eec   ; la tronera del medio: la mesa tiene SEIS
 	dec de			;4eef
 	dec de			;4ef0
 	ex af,af'			;4ef1
-	jp p,L_4EF7		;4ef2
-	add a,064h		;4ef5
+	jp p,L_4EF7		;4ef2   ; se salio por abajo
+	add a,064h		;4ef5   ; o por arriba
 L_4EF7:
-	add a,a			;4ef7
+	add a,a			;4ef7   ; el doble de lo que se paso
 	jr nz,L_4EFB		;4ef8
 	inc a			;4efa
 L_4EFB:
 	ld b,a			;4efb
 	ld a,(de)			;4efc
-	sub b			;4efd
+	sub b			;4efd   ; la Y, reflejada
 	ld (de),a			;4efe
-	call L_4F19		;4eff
-	call L_4F14		;4f02
+	call niega_la_velocidad		;4eff   ; y la velocidad Y del reves
+	call olvida_con_quien_choco		;4f02
 L_4F05:
-	call L_542D		;4f05
-	ld a,(0e1a1h)		;4f08
+	call rehace_el_angulo		;4f05   ; la direccion ha cambiado: hay que rehacer pendiente y angulo
+	ld a,(0e1a1h)		;4f08   ; 0xE1A1, el angulo recien calculado
 	ld hl,(0e194h)		;4f0b
 	inc hl			;4f0e
 	inc hl			;4f0f
-	ld (hl),a			;4f10
-	jp L_4F25		;4f11
-L_4F14:
+	ld (hl),a			;4f10   ; al +2 de la bola
+	jp busca_choques		;4f11   ; y a ver si el rebote la ha metido encima de otra
+olvida_con_quien_choco:		; Pone a cero el +15 de la bola: el rebote en banda borra la marca del ultimo choque, para que el siguiente contacto con la misma bola vuelva a contar.
 	ld (ix+00fh),000h		;4f14
 	ret			;4f18
-L_4F19:
-	ld a,(hl)			;4f19
+niega_la_velocidad:		; Complemento a dos de la palabra que hay en HL-1/HL: la que le da la vuelta a una componente de la velocidad al rebotar.
+	ld a,(hl)			;4f19   ; el byte alto
 	cpl			;4f1a
 	ld b,a			;4f1b
 	dec hl			;4f1c
-	ld a,(hl)			;4f1d
+	ld a,(hl)			;4f1d   ; y el bajo
 	cpl			;4f1e
 	ld c,a			;4f1f
-	inc bc			;4f20
+	inc bc			;4f20   ; complemento a dos: +1 tras invertir
 	ld (hl),c			;4f21
 	inc hl			;4f22
 	ld (hl),b			;4f23
 	ret			;4f24
-L_4F25:
-	ld hl,(0e194h)		;4f25
+busca_choques:		; Recorre las siete bolas comparando con la que se acaba de mover: si las dos coordenadas se diferencian en menos de 12 pixeles hay contacto posible, y entonces lo confirma 0x4F63 con la distancia de verdad.
+	ld hl,(0e194h)		;4f25   ; el +4 de la bola que se acaba de mover
 	ld a,004h		;4f28
 	add a,l			;4f2a
 	ld l,a			;4f2b
-	ld de,0e104h		;4f2c
-	ld b,(hl)			;4f2f
+	ld de,0e104h		;4f2c   ; la Y de la primera bola
+	ld b,(hl)			;4f2f   ; su Y
 	inc l			;4f30
 	inc l			;4f31
-	ld c,(hl)			;4f32
+	ld c,(hl)			;4f32   ; y su X
 	dec l			;4f33
 	dec l			;4f34
 L_4F35:
-	ld a,l			;4f35
+	ld a,l			;4f35   ; comparando los punteros
 	cp e			;4f36
-	jr z,L_4F5A		;4f37
+	jr z,L_4F5A		;4f37   ; es ella misma: no choca consigo
 	ld a,(de)			;4f39
 	inc e			;4f3a
 	inc e			;4f3b
-	sub b			;4f3c
+	sub b			;4f3c   ; la diferencia de Y
 	jr nc,L_4F41		;4f3d
 	neg		;4f3f
 L_4F41:
-	cp 00ch		;4f41
-	jr nc,L_4F58		;4f43
+	cp 00ch		;4f41   ; doce pixeles: el diametro de una bola
+	jr nc,L_4F58		;4f43   ; demasiado lejos en Y, ni se mira la X
 	ld a,(de)			;4f45
-	sub c			;4f46
+	sub c			;4f46   ; y la diferencia de X
 	jr nc,L_4F4B		;4f47
 	neg		;4f49
 L_4F4B:
@@ -1956,42 +1956,42 @@ L_4F4B:
 	push hl			;4f4f
 	push bc			;4f50
 	push de			;4f51
-	call c,L_4F63		;4f52
+	call c,resuelve_el_choque		;4f52   ; cerca en las dos: ahora la distancia de verdad
 	pop de			;4f55
 	pop bc			;4f56
 	pop hl			;4f57
 L_4F58:
-	dec e			;4f58
+	dec e			;4f58   ; DE vuelve al +4
 	dec e			;4f59
 L_4F5A:
-	ld a,010h		;4f5a
+	ld a,010h		;4f5a   ; la bola siguiente
 	add a,e			;4f5c
 	ld e,a			;4f5d
-	cp 070h		;4f5e
+	cp 070h		;4f5e   ; hasta la septima
 	jr c,L_4F35		;4f60
 	ret			;4f62
-L_4F63:
-	ld a,e			;4f63
+resuelve_el_choque:		; Mide la distancia entre las dos bolas de verdad (los dos cuadrados sumados, comparados con 0x9000, que a esta escala son 12 pixeles) y, si se tocan, reparte el movimiento. Si las dos ruedan, se intercambian velocidades (0x5192); si una estaba parada, la que llega le cede la parte de su energia que cae sobre la linea que une los dos centros -de ahi el coseno- y se queda con el resto.
+	ld a,e			;4f63   ; E, al principio del registro de la otra bola
 	and 0f0h		;4f64
 	ld e,a			;4f66
-	ld (0e19ch),de		;4f67
+	ld (0e19ch),de		;4f67   ; 0xE19C guarda con quien se esta chocando
 	push de			;4f6b
 	pop iy		;4f6c
-	ld a,(ix+003h)		;4f6e
+	ld a,(ix+003h)		;4f6e   ; la Y de las dos, en 16 bits
 	sub (iy+003h)		;4f71
 	ld l,a			;4f74
 	ld a,(ix+004h)		;4f75
 	sbc a,(iy+004h)		;4f78
 	ld h,a			;4f7b
-	add hl,hl			;4f7c
+	add hl,hl			;4f7c   ; por dieciseis, para que el cuadrado no se quede sin precision
 	add hl,hl			;4f7d
 	add hl,hl			;4f7e
 	add hl,hl			;4f7f
-	call c,L_51BD		;4f80
-	ld e,h			;4f83
+	call c,niega_hl		;4f80   ; el signo da igual para elevar al cuadrado
+	ld e,h			;4f83   ; el byte alto al cuadrado
 	call multiplica_h_por_e		;4f84
 	push hl			;4f87
-	ld a,(ix+005h)		;4f88
+	ld a,(ix+005h)		;4f88   ; y lo mismo con la X
 	sub (iy+005h)		;4f8b
 	ld l,a			;4f8e
 	ld a,(ix+006h)		;4f8f
@@ -2001,109 +2001,109 @@ L_4F63:
 	add hl,hl			;4f97
 	add hl,hl			;4f98
 	add hl,hl			;4f99
-	call c,L_51BD		;4f9a
+	call c,niega_hl		;4f9a
 	ld e,h			;4f9d
 	call multiplica_h_por_e		;4f9e
 	pop de			;4fa1
-	add hl,de			;4fa2
+	add hl,de			;4fa2   ; la suma de los dos cuadrados
 	and a			;4fa3
-	ld de,09000h		;4fa4
+	ld de,09000h		;4fa4   ; 0x9000 a esta escala son doce pixeles al cuadrado
 	sbc hl,de		;4fa7
-	ret nc			;4fa9
+	ret nc			;4fa9   ; no se llegan a tocar
 	ld hl,(0e194h)		;4faa
 	ld de,(0e19ch)		;4fad
 	ld a,l			;4fb1
-	add a,010h		;4fb2
+	add a,010h		;4fb2   ; la base de cada bola mas 0x10 le sirve de nombre
 	ld b,a			;4fb4
 	ld a,e			;4fb5
 	add a,010h		;4fb6
 	ld c,a			;4fb8
-	ld a,00fh		;4fb9
+	ld a,00fh		;4fb9   ; el +15 de esta
 	add a,l			;4fbb
 	ld l,a			;4fbc
-	ld a,00fh		;4fbd
+	ld a,00fh		;4fbd   ; y el +15 de la otra
 	add a,e			;4fbf
 	ld e,a			;4fc0
 	ld a,(hl)			;4fc1
-	and a			;4fc2
+	and a			;4fc2   ; esta no viene de chocar con nadie
 	jr z,L_4FD0		;4fc3
-	cp c			;4fc5
+	cp c			;4fc5   ; se acuerda de la otra?
 	jr nz,L_4FD0		;4fc6
 	ld a,(de)			;4fc8
 	and a			;4fc9
 	jr z,L_4FD0		;4fca
 	cp b			;4fcc
-	jp z,L_51C5		;4fcd
+	jp z,deshace_el_paso		;4fcd   ; y la otra de esta: entonces es el mismo contacto de antes y no se repite
 L_4FD0:
-	call L_51E5		;4fd0
-	ld a,003h		;4fd3
+	call marca_el_par_que_choco		;4fd0   ; contacto nuevo: que cada una se acuerde de la otra
+	ld a,003h		;4fd3   ; sonido 3: el chasquido de las bolas
 	call L_5BCA		;4fd5
-	call L_51C5		;4fd8
+	call deshace_el_paso		;4fd8   ; y se retrocede el paso, que estan encajadas
 	ld de,(0e19ch)		;4fdb
-	inc de			;4fdf
+	inc de			;4fdf   ; el +1 de la otra
 	ld a,(de)			;4fe0
 	and a			;4fe1
-	jp nz,L_5192		;4fe2
-	call L_4FEB		;4fe5
-	jp L_5104		;4fe8
+	jp nz,intercambia_las_velocidades		;4fe2   ; la otra tambien rueda: se cambian las velocidades y listo
+	call L_4FEB		;4fe5   ; estaba parada: hay que repartir
+	jp guarda_la_velocidad_del_golpeador		;4fe8
 L_4FEB:
-	ld a,005h		;4feb
+	ld a,005h		;4feb   ; DE al +5 de la otra y HL al +6 de esta
 	add a,e			;4fed
 	ld e,a			;4fee
 	ld hl,(0e194h)		;4fef
 	ld a,006h		;4ff2
 	add a,l			;4ff4
 	ld l,a			;4ff5
-	call L_517B		;4ff6
-	ld (0e198h),hl		;4ff9
-	exx			;4ffc
-	call L_517B		;4ffd
+	call resta_coordenadas		;4ff6   ; la diferencia de X entre las dos
+	ld (0e198h),hl		;4ff9   ; puesta donde 0x5430 espera una velocidad X
+	exx			;4ffc   ; y devuelve el juego de registros a su sitio
+	call resta_coordenadas		;4ffd   ; la diferencia de Y
 	ld (0e196h),hl		;5000
-	ld hl,0e18fh		;5003
-	call saca_la_pendiente_del_vector		;5006
-	ld b,(ix+002h)		;5009
+	ld hl,0e18fh		;5003   ; 0xE18F hace de bola falsa: su +7 y su +9 son las dos diferencias
+	call saca_la_pendiente_del_vector		;5006   ; asi la misma rutina saca el angulo de la LINEA DE CENTROS
+	ld b,(ix+002h)		;5009   ; el angulo con el que venia la bola
 	ld a,(0e1a1h)		;500c
-	sub b			;500f
+	sub b			;500f   ; cuanto se desvia el golpe de la linea de centros
 	jp p,L_5015		;5010
 	neg		;5013
 L_5015:
-	cp 03ch		;5015
+	cp 03ch		;5015   ; saturado a 0x3C: casi un angulo recto
 	jr c,L_501B		;5017
 	ld a,03ch		;5019
 L_501B:
-	call coseno_de_la_fuerza		;501b
+	call coseno_de_la_fuerza		;501b   ; la tabla devuelve el coseno en A y el seno en C
 	ld (0e1ach),a		;501e
 	ld a,c			;5021
 	ld e,a			;5022
-	ld h,(ix+001h)		;5023
+	ld h,(ix+001h)		;5023   ; la energia de la que llega
 	push hl			;5026
-	call multiplica_h_por_e		;5027
+	call multiplica_h_por_e		;5027   ; por el seno del desvio
 	ld a,h			;502a
-	ld (0e1a7h),a		;502b
-	ld (iy+001h),a		;502e
+	ld (0e1a7h),a		;502b   ; la parte que se lleva la golpeada
+	ld (iy+001h),a		;502e   ; y se la queda
 	pop hl			;5031
 	ld a,(0e1ach)		;5032
 	ld e,a			;5035
-	call multiplica_h_por_e		;5036
-	ld (ix+001h),h		;5039
-	ld a,(0e1a5h)		;503c
+	call multiplica_h_por_e		;5036   ; y por el coseno
+	ld (ix+001h),h		;5039   ; la parte que conserva la que golpea
+	ld a,(0e1a5h)		;503c   ; la componente Y de la linea de centros
 	ld e,a			;503f
 	ld a,(0e1a7h)		;5040
 	ld h,a			;5043
-	call multiplica_h_por_e		;5044
+	call multiplica_h_por_e		;5044   ; por la energia cedida
 	xor a			;5047
-	add hl,hl			;5048
+	add hl,hl			;5048   ; tres desplazamientos con A recogiendo lo que se sale
 	rla			;5049
 	add hl,hl			;504a
 	rla			;504b
 	add hl,hl			;504c
 	rla			;504d
-	ld l,h			;504e
+	ld l,h			;504e   ; el resultado es el producto dividido entre 32
 	ld h,a			;504f
 	ld a,(0e1a2h)		;5050
-	rra			;5053
-	call c,L_51BD		;5054
-	ld (0e1a8h),hl		;5057
+	rra			;5053   ; el bit 0 de 0xE1A2: la Y iba hacia arriba
+	call c,niega_hl		;5054
+	ld (0e1a8h),hl		;5057   ; la velocidad Y de la golpeada
 	ld a,(0e1a6h)		;505a
 	ld e,a			;505d
 	ld a,(0e1a7h)		;505e
@@ -2119,12 +2119,12 @@ L_501B:
 	ld l,h			;506c
 	ld h,a			;506d
 	ld a,(0e1a2h)		;506e
-	and 002h		;5071
-	call nz,L_51BD		;5073
+	and 002h		;5071   ; y el bit 1 para la X
+	call nz,niega_hl		;5073
 	ld (0e1aah),hl		;5076
-	ex de,hl			;5079
+	ex de,hl			;5079   ; las dos componentes al registro de la otra bola
 	ld hl,(0e19ch)		;507a
-	ld a,00ah		;507d
+	ld a,00ah		;507d   ; su +10
 	add a,l			;507f
 	ld l,a			;5080
 	ld (hl),d			;5081
@@ -2135,11 +2135,11 @@ L_501B:
 	ld (hl),d			;5089
 	dec hl			;508a
 	ld (hl),e			;508b
-	ld a,(0e1a1h)		;508c
-	ld (iy+002h),a		;508f
+	ld a,(0e1a1h)		;508c   ; el angulo de la linea de centros
+	ld (iy+002h),a		;508f   ; es el angulo con el que sale la golpeada
 	ld a,(0e1a5h)		;5092
 	ld e,a			;5095
-	ld h,018h		;5096
+	ld h,018h		;5096   ; las componentes escaladas a 24/256
 	call multiplica_h_por_e		;5098
 	ld (iy+00dh),h		;509b
 	ld a,(0e1a6h)		;509e
@@ -2157,15 +2157,15 @@ L_501B:
 	rla			;50b7
 	add hl,hl			;50b8
 	rla			;50b9
-	add hl,hl			;50ba
+	add hl,hl			;50ba   ; el tercer desplazamiento
 	rla			;50bb
 	ld l,h			;50bc
-	ld h,a			;50bd
-	ld (0e1a8h),hl		;50be
+	ld h,a			;50bd   ; otra vez el producto entre 32
+	ld (0e1a8h),hl		;50be   ; la componente X de la que golpea sale de la Y de la linea de centros...
 	pop hl			;50c1
 	ld a,(0e1a5h)		;50c2
 	ld e,a			;50c5
-	call multiplica_h_por_e		;50c6
+	call multiplica_h_por_e		;50c6   ; ...y la Y de la X: cambiarlas de sitio es girar el vector un angulo recto
 	xor a			;50c9
 	add hl,hl			;50ca
 	rla			;50cb
@@ -2175,100 +2175,100 @@ L_501B:
 	rla			;50cf
 	ld l,h			;50d0
 	ld h,a			;50d1
-	ld (0e1aah),hl		;50d2
-	ld a,(0e1a1h)		;50d5
-	ld b,(ix+002h)		;50d8
-	cp 040h		;50db
-	jr c,L_513C		;50dd
-	cp 080h		;50df
-	jr c,L_5156		;50e1
-	cp 0c0h		;50e3
-	jp c,L_5168		;50e5
-	sub 060h		;50e8
+	ld (0e1aah),hl		;50d2   ; porque la que golpea sale por la PERPENDICULAR a la linea de centros
+	ld a,(0e1a1h)		;50d5   ; el angulo de la linea de centros
+	ld b,(ix+002h)		;50d8   ; y el que traia la bola
+	cp 040h		;50db   ; 0x40 es un cuarto de vuelta
+	jr c,signos_con_el_angulo_bajo_0x40		;50dd
+	cp 080h		;50df   ; la mitad
+	jr c,signos_entre_0x40_y_0x80		;50e1
+	cp 0c0h		;50e3   ; y tres cuartos
+	jp c,signos_entre_0x80_y_0xC0		;50e5
+	sub 060h		;50e8   ; el cuarto cuadrante: los dos angulos se giran 0x60 para que la comparacion no cruce el cero
 	ex af,af'			;50ea
 	ld a,b			;50eb
 	sub 060h		;50ec
 	ld b,a			;50ee
 	ex af,af'			;50ef
-	cp b			;50f0
+	cp b			;50f0   ; quien va por delante de quien decide el lado
 	ld hl,(0e1a8h)		;50f1
-	call nc,L_51BD		;50f4
+	call nc,niega_hl		;50f4   ; y con eso se le da la vuelta a las dos componentes, o a ninguna
 	ld (0e1a8h),hl		;50f7
 	ld hl,(0e1aah)		;50fa
-	call nc,L_51BD		;50fd
+	call nc,niega_hl		;50fd
 L_5100:
 	ld (0e1aah),hl		;5100
 	ret			;5103
-L_5104:
-	ld hl,(0e194h)		;5104
+guarda_la_velocidad_del_golpeador:		; Escribe en el +7 al +10 de la bola que ha golpeado las dos componentes que quedaron en 0xE1A8 y 0xE1AA, y rehace su pendiente, su angulo (+2) y las dos componentes escaladas del +13 y el +14.
+	ld hl,(0e194h)		;5104   ; el +7 de la bola que ha golpeado
 	ld a,007h		;5107
 	add a,l			;5109
 	ld l,a			;510a
-	ld bc,(0e1a8h)		;510b
+	ld bc,(0e1a8h)		;510b   ; las dos componentes recien calculadas
 	ld de,(0e1aah)		;510f
-	ld (hl),c			;5113
+	ld (hl),c			;5113   ; su velocidad Y
 	inc hl			;5114
 	ld (hl),b			;5115
 	inc hl			;5116
-	ld (hl),e			;5117
+	ld (hl),e			;5117   ; y su velocidad X
 	inc hl			;5118
 	ld (hl),d			;5119
-	call L_542D		;511a
+	call rehace_el_angulo		;511a   ; con la velocidad nueva, angulo nuevo
 	ld a,(0e1a5h)		;511d
 	ld e,a			;5120
 	ld h,018h		;5121
 	call multiplica_h_por_e		;5123
 	ld a,(0e1a1h)		;5126
-	ld (ix+002h),a		;5129
-	ld (ix+00dh),h		;512c
+	ld (ix+002h),a		;5129   ; al +2
+	ld (ix+00dh),h		;512c   ; y las componentes escaladas al +13 y el +14
 	ld a,(0e1a6h)		;512f
 	ld e,a			;5132
 	ld h,018h		;5133
 	call multiplica_h_por_e		;5135
 	ld (ix+00eh),h		;5138
 	ret			;513b
-L_513C:
-	add a,060h		;513c
+signos_con_el_angulo_bajo_0x40:		; Una de las cuatro ramas que deciden hacia que lado sale la bola que golpea. Compara el angulo de la linea de centros con el de la bola, los dos girados 0x60 para que la comparacion no cruce el cero, y niega una componente, la otra o ninguna.
+	add a,060h		;513c   ; primer cuadrante: el mismo giro de 0x60
 	ex af,af'			;513e
 	ld a,b			;513f
 	add a,060h		;5140
 	ld b,a			;5142
 	ex af,af'			;5143
-	cp b			;5144
+	cp b			;5144   ; y aqui una componente se niega y la otra no
 	ld hl,(0e1a8h)		;5145
-	call nc,L_51BD		;5148
+	call nc,niega_hl		;5148
 	ld (0e1a8h),hl		;514b
 	ld hl,(0e1aah)		;514e
-	call c,L_51BD		;5151
+	call c,niega_hl		;5151
 	jr L_5100		;5154
-L_5156:
-	cp b			;5156
+signos_entre_0x40_y_0x80:		; La rama del segundo cuadrante: con el mismo acarreo niega las dos componentes o ninguna.
+	cp b			;5156   ; segundo cuadrante: sin girar nada
 	ld hl,(0e1a8h)		;5157
-	call c,L_51BD		;515a
+	call c,niega_hl		;515a   ; las dos a la vez, o ninguna
 	ld (0e1a8h),hl		;515d
 	ld hl,(0e1aah)		;5160
-	call c,L_51BD		;5163
+	call c,niega_hl		;5163
 	jr L_5100		;5166
-L_5168:
-	cp b			;5168
+signos_entre_0x80_y_0xC0:		; La rama del tercer cuadrante: niega una componente y deja la otra, al reves que 0x513C.
+	cp b			;5168   ; tercer cuadrante
 	ld hl,(0e1a8h)		;5169
-	call c,L_51BD		;516c
+	call c,niega_hl		;516c   ; una si y la otra no, al reves que en el primero
 	ld (0e1a8h),hl		;516f
 	ld hl,(0e1aah)		;5172
-	call nc,L_51BD		;5175
+	call nc,niega_hl		;5175
 	jp L_5100		;5178
-L_517B:
-	ld a,(de)			;517b
+resta_coordenadas:		; La resta de 16 bits entre la misma coordenada de dos bolas, hecha en el juego alterno de registros para no gastar los de fuera. Devuelve por HL, PERO deja el juego alterno puesto: el `exx` de 0x4FFC es lo que lo devuelve a su sitio.
+	ld a,(de)			;517b   ; el byte alto de una
 	dec de			;517c
 	exx			;517d
 	ld h,a			;517e
 	exx			;517f
-	ld a,(de)			;5180
+	ld a,(de)			;5180   ; y el bajo
 	dec de			;5181
 	exx			;5182
 	ld l,a			;5183
 	exx			;5184
-	ld a,(hl)			;5185
+	ld a,(hl)			;5185   ; los mismos dos de la otra
 	dec hl			;5186
 	exx			;5187
 	ld b,a			;5188
@@ -2277,31 +2277,31 @@ L_517B:
 	dec hl			;518b
 	exx			;518c
 	ld c,a			;518d
-	and a			;518e
+	and a			;518e   ; y la resta, en el juego alterno
 	sbc hl,bc		;518f
 	ret			;5191
-L_5192:
-	ld hl,(0e19ch)		;5192
-	ld de,(0e194h)		;5195
+intercambia_las_velocidades:		; El choque entre dos bolas que se mueven las dos: intercambia el +1 y el +2 (energia y angulo), el +7 al +10 (las dos velocidades) y el +13 y el +14. Es el choque frontal entre masas iguales, resuelto sin una sola multiplicacion.
+	ld hl,(0e19ch)		;5192   ; la otra bola
+	ld de,(0e194h)		;5195   ; y esta
 	inc hl			;5199
 	inc de			;519a
-	ld b,002h		;519b
+	ld b,002h		;519b   ; el +1 y el +2: energia y angulo
 	call L_51B3		;519d
-	ld a,004h		;51a0
+	ld a,004h		;51a0   ; al +7
 	add a,l			;51a2
 	ld l,a			;51a3
 	ld a,004h		;51a4
 	add a,e			;51a6
 	ld e,a			;51a7
-	ld b,004h		;51a8
+	ld b,004h		;51a8   ; las cuatro componentes de velocidad
 	call L_51B3		;51aa
 	inc hl			;51ad
 	inc hl			;51ae
 	inc de			;51af
 	inc de			;51b0
-	ld b,002h		;51b1
+	ld b,002h		;51b1   ; y el +13 con el +14
 L_51B3:
-	ld c,(hl)			;51b3
+	ld c,(hl)			;51b3   ; el intercambio byte a byte
 	ld a,(de)			;51b4
 	ld (hl),a			;51b5
 	ld a,c			;51b6
@@ -2310,17 +2310,17 @@ L_51B3:
 	inc hl			;51b9
 	djnz L_51B3		;51ba
 	ret			;51bc
-L_51BD:
-	ld a,l			;51bd
+niega_hl:		; Complemento a dos de HL.
+	ld a,l			;51bd   ; el byte bajo
 	cpl			;51be
 	ld l,a			;51bf
-	ld a,h			;51c0
+	ld a,h			;51c0   ; y el alto
 	cpl			;51c1
 	ld h,a			;51c2
-	inc hl			;51c3
+	inc hl			;51c3   ; mas uno: complemento a dos
 	ret			;51c4
-L_51C5:
-	ld de,(0e194h)		;51c5
+deshace_el_paso:		; Le resta a la posicion de la bola (+3 y +5, las dos de 16 bits) su propia velocidad: retrocede el paso que acaba de dar, para que las dos bolas que han chocado no se queden encajadas una dentro de la otra.
+	ld de,(0e194h)		;51c5   ; DE a la posicion y HL a la velocidad
 	ld l,e			;51c9
 	ld h,d			;51ca
 	ld a,007h		;51cb
@@ -2330,124 +2330,124 @@ L_51C5:
 	inc de			;51d0
 	inc de			;51d1
 	ld a,(de)			;51d2
-	sub (hl)			;51d3
+	sub (hl)			;51d3   ; restarla es volver a donde estaba antes del paso
 	ld (de),a			;51d4
-	inc hl			;51d5
+	inc hl			;51d5   ; el byte alto de la Y
 	inc de			;51d6
 	ld a,(de)			;51d7
 	sbc a,(hl)			;51d8
 	ld (de),a			;51d9
 	inc hl			;51da
-	inc de			;51db
+	inc de			;51db   ; al +5, la X
 	ld a,(de)			;51dc
 	sub (hl)			;51dd
 	ld (de),a			;51de
 	inc hl			;51df
 	inc de			;51e0
-	ld a,(de)			;51e1
+	ld a,(de)			;51e1   ; y su byte alto
 	sbc a,(hl)			;51e2
 	ld (de),a			;51e3
 	ret			;51e4
-L_51E5:
+marca_el_par_que_choco:		; Cada una de las dos bolas se queda en su +15 con la base de la otra mas 0x10, que le sirve de nombre. Mientras las dos se apunten mutuamente, 0x4FC5 no vuelve a resolver el mismo contacto.
 	ld hl,(0e194h)		;51e5
 	ld de,(0e19ch)		;51e8
 	ld b,l			;51ec
 	ld c,e			;51ed
-	ld a,00fh		;51ee
+	ld a,00fh		;51ee   ; el +15 de esta
 	add a,l			;51f0
 	ld l,a			;51f1
-	ld a,00fh		;51f2
+	ld a,00fh		;51f2   ; y el +15 de la otra
 	add a,e			;51f4
 	ld e,a			;51f5
 	ld a,b			;51f6
-	add a,010h		;51f7
+	add a,010h		;51f7   ; cada una guarda el nombre de la otra
 	ld (de),a			;51f9
 	ld a,c			;51fa
 	add a,010h		;51fb
 	ld (hl),a			;51fd
 	ret			;51fe
-L_51FF:
-	call L_59C8		;51ff
-	call L_52E5		;5202
-	ld a,(0e19fh)		;5205
+paso_de_la_partida:		; El paso que corre mientras la mesa esta viva, llamado desde el refresco de sprites. Si hay un tiro en marcha le cede el turno a la fisica; si hay recuento de puntos pendiente, a la animacion del multiplicador; y si no, es el turno del jugador: cada 64 cuadros mueve la barra de SPEED, mueve la mira con las teclas y, con el boton, dispara.
+	call pinta_las_bolas_embocadas		;51ff   ; los rotulos que se repintan siempre
+	call pinta_los_intentos		;5202
+	ld a,(0e19fh)		;5205   ; 0xE19F: hay un tiro rodando
 	and a			;5208
-	jp nz,paso_de_la_fisica		;5209
-	ld a,(0e1afh)		;520c
+	jp nz,paso_de_la_fisica		;5209   ; entonces manda la fisica y el jugador no toca nada
+	ld a,(0e1afh)		;520c   ; 0xE1AF: queda recuento de puntos
 	and a			;520f
-	jp nz,L_5AC4		;5210
+	jp nz,animacion_del_recuento		;5210   ; y entonces manda la animacion del multiplicador
 	ld a,00fh		;5213
-	ld (0e17ch),a		;5215
+	ld (0e17ch),a		;5215   ; 0xE17C, a 0x0F mientras se apunta
 	ld a,(0e003h)		;5218
-	and 03fh		;521b
-	call z,L_5314		;521d
-	ld a,(0e008h)		;5220
-	cpl			;5223
+	and 03fh		;521b   ; uno de cada 64 cuadros
+	call z,pinta_la_barra_de_fuerza		;521d   ; y ahi es donde la barra de fuerza avanza un paso
+	ld a,(0e008h)		;5220   ; las teclas del cuadro anterior
+	cpl			;5223   ; invertidas
 	ld b,a			;5224
-	ld a,(0e009h)		;5225
+	ld a,(0e009h)		;5225   ; contra las de ahora
 	ld c,a			;5228
-	and b			;5229
-	bit 4,a		;522a
-	jp nz,calcula_el_tiro		;522c
-	exx			;522f
-	ld hl,0e202h		;5230
+	and b			;5229   ; el flanco: las que se acaban de pulsar
+	bit 4,a		;522a   ; el bit 4, el boton de tiro
+	jp nz,calcula_el_tiro		;522c   ; y se dispara
+	exx			;522f   ; el juego alterno, que BC lleva las teclas
+	ld hl,0e202h		;5230   ; 0xE202: el reloj de abandono
 	and a			;5233
-	jr nz,L_5246		;5234
-	ld a,(0e003h)		;5236
+	jr nz,L_5246		;5234   ; con cualquier tecla vuelve a cero
+	ld a,(0e003h)		;5236   ; y sin ninguna, solo corre un cuadro de cada 256
 	and 0ffh		;5239
 	jr nz,L_5248		;523b
-	dec (hl)			;523d
+	dec (hl)			;523d   ; 256 pasadas de 256 cuadros: mas de un cuarto de hora sin tocar nada
 	jr nz,L_5248		;523e
 	ld a,001h		;5240
-	ld (0e00ch),a		;5242
+	ld (0e00ch),a		;5242   ; y la tacada se da por perdida
 	ret			;5245
 L_5246:
 	ld (hl),000h		;5246
 L_5248:
-	ld a,(0e174h)		;5248
+	ld a,(0e174h)		;5248   ; donde esta la mira ahora
 	ld h,a			;524b
 	ld a,(0e176h)		;524c
 	ld l,a			;524f
 	push hl			;5250
-	call L_5B90		;5251
-	call L_527C		;5254
-	ld a,(0e174h)		;5257
+	call pinta_el_rate		;5251   ; el cartel del multiplicador
+	call mueve_la_mira		;5254   ; y la mira se mueve con las teclas
+	ld a,(0e174h)		;5257   ; donde ha quedado
 	ld d,a			;525a
 	ld a,(0e176h)		;525b
 	ld e,a			;525e
 	pop hl			;525f
 	and a			;5260
-	sbc hl,de		;5261
+	sbc hl,de		;5261   ; se ha movido?
 	jr z,L_526E		;5263
 	ld a,(0e024h)		;5265
-	and a			;5268
+	and a			;5268   ; y el canal esta libre?
 	ld a,001h		;5269
-	call z,pide_un_sonido		;526b
+	call z,pide_un_sonido		;526b   ; sonido 1: el tic de mover la mira
 L_526E:
-	exx			;526e
+	exx			;526e   ; vuelta al juego principal, donde C lleva las teclas
 	ld hl,0e1aah		;526f
 	ld a,c			;5272
-	and a			;5273
+	and a			;5273   ; se esta pulsando algo?
 	jr nz,L_5279		;5274
-	ld (hl),010h		;5276
+	ld (hl),010h		;5276   ; nada pulsado: 0xE1AA vuelve a 0x10
 	ret			;5278
 L_5279:
-	dec (hl)			;5279
+	dec (hl)			;5279   ; y pulsando va bajando, sin pasar de cero
 	ret p			;527a
 	inc (hl)			;527b
-L_527C:
-	ld de,(0e1f7h)		;527c
-	ld hl,(0e174h)		;5280
-	ld a,(0e176h)		;5283
+mueve_la_mira:		; Mueve el punto al que se apunta (0xE174 la Y, 0xE176 la X) con las cuatro direcciones. Solo se mueve en UN eje por llamada, el que diga el bit 0 de 0xE1F9, y ese bit se conmuta al llegar a los topes de ese eje: X entre 0x0E y 0xE1, Y entre 0x36 y 0xA9. Con esas dos reglas, las posiciones que la mira puede alcanzar son el PERIMETRO de ese rectangulo, que rodea a la mesa entera.
+	ld de,(0e1f7h)		;527c   ; 0xE1F7: cuanto se mueve la mira en cada eje
+	ld hl,(0e174h)		;5280   ; donde esta
+	ld a,(0e176h)		;5283   ; la X en H y la Y en L
 	ld h,a			;5286
-	ld a,(0e009h)		;5287
-	and a			;528a
+	ld a,(0e009h)		;5287   ; las teclas de este cuadro
+	and a			;528a   ; sin ninguna, la mira se queda quieta
 	jr nz,L_528F		;528b
 	ld d,a			;528d
 	ld e,a			;528e
 L_528F:
-	rra			;528f
+	rra			;528f   ; el bit 0: arriba
 	jr nc,L_5294		;5290
-	ld e,0ffh		;5292
+	ld e,0ffh		;5292   ; la Y, un pixel menos
 L_5294:
 	rra			;5294
 	jr nc,L_5299		;5295
@@ -2461,47 +2461,47 @@ L_529E:
 	jr nc,L_52A3		;529f
 	ld d,001h		;52a1
 L_52A3:
-	ld (0e1f7h),de		;52a3
+	ld (0e1f7h),de		;52a3   ; el movimiento, guardado para la proxima
 	ld a,h			;52a7
-	add a,d			;52a8
+	add a,d			;52a8   ; la X con lo suyo
 	ld d,a			;52a9
 	ld a,l			;52aa
-	add a,e			;52ab
+	add a,e			;52ab   ; y la Y con lo suyo
 	ld e,a			;52ac
-	ld hl,0e1f9h		;52ad
-	bit 0,(hl)		;52b0
-	jr z,L_52C7		;52b2
+	ld hl,0e1f9h		;52ad   ; 0xE1F9: en que eje se puede mover ahora
+	bit 0,(hl)		;52b0   ; el bit 0 reparte entre las bandas de arriba y abajo y las de los lados
+	jr z,L_52C7		;52b2   ; el eje vertical
 	ld a,d			;52b4
-	sub 00eh		;52b5
+	sub 00eh		;52b5   ; pegada al tope izquierdo?
 	jr nz,L_52BA		;52b7
-	inc (hl)			;52b9
+	inc (hl)			;52b9   ; entonces conmuta el eje: la mira dobla la esquina
 L_52BA:
-	sub 0d4h		;52ba
-	jr nc,L_52DA		;52bc
-	inc a			;52be
+	sub 0d4h		;52ba   ; y el mismo control contra el tope derecho
+	jr nc,L_52DA		;52bc   ; pasado el tope: no se mueve
+	inc a			;52be   ; justo en el tope
 	jr nz,L_52C2		;52bf
 	inc (hl)			;52c1
 L_52C2:
 	ld a,d			;52c2
-	ld (0e176h),a		;52c3
+	ld (0e176h),a		;52c3   ; la X, ya movida
 	ret			;52c6
 L_52C7:
 	ld a,e			;52c7
-	sub 036h		;52c8
+	sub 036h		;52c8   ; el tope de arriba
 	jr nz,L_52CD		;52ca
 	inc (hl)			;52cc
 L_52CD:
-	sub 074h		;52cd
+	sub 074h		;52cd   ; y el de abajo, 0x74 pixeles mas alla
 	jr nc,L_52DA		;52cf
 	inc a			;52d1
 	jr nz,L_52D5		;52d2
 	inc (hl)			;52d4
 L_52D5:
 	ld a,e			;52d5
-	ld (0e174h),a		;52d6
+	ld (0e174h),a		;52d6   ; la Y, ya movida
 	ret			;52d9
 L_52DA:
-	inc (hl)			;52da
+	inc (hl)			;52da   ; en el tope de todo, cambia de eje y se queda
 	ret			;52db
 
 ; ----------------------------------------------------------------------
@@ -2522,62 +2522,62 @@ DATA_rotulo_rest:
 ; ======================================================================
 
 
-L_52E5:
-	ld de,03858h		;52e5
-	ld hl,052e1h		;52e8
+pinta_los_intentos:		; El rotulo REST de la fila 2 columna 24 y, detras, un rombo (tile 0x5E) por cada intento que le queda a esta bola (0xE053), hasta cuatro, rellenando de huecos lo que sobra.
+	ld de,03858h		;52e5   ; fila 2, columna 24
+	ld hl,052e1h		;52e8   ; los cuatro tiles del REST
 	ld bc,00004h		;52eb
 	call copia_a_vram		;52ee
-	ld a,(0e053h)		;52f1
+	ld a,(0e053h)		;52f1   ; los intentos que quedan
 	ld b,a			;52f4
-	ld a,004h		;52f5
+	ld a,004h		;52f5   ; y los huecos que sobran hasta cuatro
 	sub b			;52f7
 	ld c,a			;52f8
-	ld de,0385ch		;52f9
+	ld de,0385ch		;52f9   ; fila 2, columna 28
 	call abre_la_vram_para_escribir		;52fc
 L_52FF:
-	ld a,b			;52ff
+	ld a,b			;52ff   ; quedan intentos por pintar?
 	and a			;5300
 	jr z,L_530B		;5301
-	ld a,05eh		;5303
+	ld a,05eh		;5303   ; 0x5E: el rombo
 	exx			;5305
 	out (c),a		;5306
 	exx			;5308
 	djnz L_52FF		;5309
 L_530B:
-	xor a			;530b
+	xor a			;530b   ; y lo que sobra, en blanco
 	exx			;530c
 	out (c),a		;530d
 	exx			;530f
-	dec c			;5310
+	dec c			;5310   ; hasta completar los cuatro huecos
 	jr nz,L_530B		;5311
 	ret			;5313
-L_5314:
-	ld de,038c4h		;5314
-	ld hl,052dch		;5317
+pinta_la_barra_de_fuerza:		; El rotulo SPEED de la fila 6 columna 4 y, detras, la barra: 0xE1A0 tiles 0x97 y el resto en blanco hasta cuatro. Y de paso ADELANTA la propia barra, que cicla sola 1, 2, 3, 1, 2, 3... El jugador no la ajusta: la llamada de 0x521D entra una vez cada 64 cuadros y hay que disparar cuando la barra este donde interesa.
+	ld de,038c4h		;5314   ; fila 6, columna 4
+	ld hl,052dch		;5317   ; los cinco tiles del SPEED
 	ld bc,00005h		;531a
 	call copia_a_vram		;531d
-	ld hl,0e1a0h		;5320
+	ld hl,0e1a0h		;5320   ; 0xE1A0: la fuerza
 	ld a,(hl)			;5323
-	inc a			;5324
-	cp 004h		;5325
+	inc a			;5324   ; sube una
+	cp 004h		;5325   ; y al llegar a cuatro
 	jr c,L_532B		;5327
-	ld a,001h		;5329
+	ld a,001h		;5329   ; vuelve a empezar por uno: la barra va y viene sola
 L_532B:
 	ld (hl),a			;532b
-	ld b,a			;532c
-	ld a,004h		;532d
+	ld b,a			;532c   ; lo que hay que pintar
+	ld a,004h		;532d   ; y lo que hay que borrar
 	sub b			;532f
 	ld h,a			;5330
-	ld de,038c9h		;5331
-	ld a,097h		;5334
+	ld de,038c9h		;5331   ; fila 6, columna 9
+	ld a,097h		;5334   ; 0x97: el trozo de barra
 L_5336:
 	call escribe_en_vram		;5336
 	inc de			;5339
 	djnz L_5336		;533a
-	ld a,000h		;533c
+	ld a,000h		;533c   ; y el resto, en blanco
 L_533E:
 	dec h			;533e
-	ret m			;533f
+	ret m			;533f   ; hasta los cuatro huecos
 	call escribe_en_vram		;5340
 	inc de			;5343
 	jr L_533E		;5344
@@ -2632,20 +2632,20 @@ L_537A:
 	ret c			;537f
 	inc bc			;5380   ; el impar siguiente
 	jr L_537A		;5381
-coseno_de_la_fuerza:		; Lee la tabla de 0x539C con el indice saturado a 0x40, para el coseno, y con 0x40 menos el indice para el seno
-	cp 040h		;5383
+coseno_de_la_fuerza:		; Lee la tabla de 0x539C dos veces: con el indice saturado a 0x40 devuelve el coseno en C y, con 0x40 menos el indice, el seno en A. Una sola tabla de cuarto de vuelta para las dos funciones.
+	cp 040h		;5383   ; la tabla llega hasta un cuarto de vuelta
 	jr c,L_5389		;5385
-	ld a,040h		;5387
+	ld a,040h		;5387   ; y de ahi no pasa
 L_5389:
 	ld b,a			;5389
-	ld hl,0539ch		;538a
+	ld hl,0539ch		;538a   ; el indice guardado
 	call suma_a_a_hl		;538d
-	ld c,(hl)			;5390
-	ld a,040h		;5391
+	ld c,(hl)			;5390   ; C se queda con el coseno
+	ld a,040h		;5391   ; y el complemento del indice
 	sub b			;5393
 	ld hl,0539ch		;5394
 	call suma_a_a_hl		;5397
-	ld a,(hl)			;539a
+	ld a,(hl)			;539a   ; da el seno con la misma tabla
 	ret			;539b
 
 ; ----------------------------------------------------------------------
@@ -2666,98 +2666,98 @@ DATA_tabla_de_coseno_de_la_fuerza:
 ; ======================================================================
 
 
-L_53DD:
-	ld a,(0e003h)		;53dd
+frena_una_bola:		; El rozamiento del pano, una vez de cada ocho cuadros: le quita 3 a la energia de la bola (+1) sin bajar de cero, y a cada componente de la velocidad le suma el frenado que lleva guardado en el +13 y el +14, siempre con el signo contrario al del movimiento. Como esos dos bytes son las componentes del vector unidad escaladas a 24/256, la bola frena EN SU PROPIA LINEA y no se tuerce al pararse.
+	ld a,(0e003h)		;53dd   ; una vez de cada ocho cuadros
 	and 007h		;53e0
 	ret nz			;53e2
 L_53E3:
-	ld hl,(0e194h)		;53e3
-	inc hl			;53e6
+	ld hl,(0e194h)		;53e3   ; la entrada sin esperar, la que usa el recuento
+	inc hl			;53e6   ; el +1: la energia
 	ld a,(hl)			;53e7
-	sub 003h		;53e8
+	sub 003h		;53e8   ; tres unidades menos por pasada
 	jr nc,L_53ED		;53ea
-	xor a			;53ec
+	xor a			;53ec   ; sin pasarse de cero
 L_53ED:
 	ld (hl),a			;53ed
-	ld a,00ch		;53ee
+	ld a,00ch		;53ee   ; al +13
 	call suma_a_a_hl		;53f0
-	ld c,(hl)			;53f3
+	ld c,(hl)			;53f3   ; BC: el frenado, ya repartido por componentes
 	inc hl			;53f4
 	ld b,(hl)			;53f5
 	ld hl,(0e194h)		;53f6
 	ld a,007h		;53f9
-	call suma_a_a_hl		;53fb
-	ld e,(hl)			;53fe
+	call suma_a_a_hl		;53fb   ; y HL al +7
+	ld e,(hl)			;53fe   ; la velocidad Y
 	inc hl			;53ff
 	ld d,(hl)			;5400
 	ex de,hl			;5401
-	ld a,b			;5402
+	ld a,b			;5402   ; A guarda el +14 para la otra componente
 	ld b,000h		;5403
-	bit 7,h		;5405
+	bit 7,h		;5405   ; la velocidad va hacia abajo?
 	push af			;5407
-	call z,L_5425		;5408
+	call z,niega_bc		;5408   ; si va hacia arriba, el frenado tira al reves
 	pop af			;540b
-	add hl,bc			;540c
+	add hl,bc			;540c   ; y se le suma
 	ex de,hl			;540d
-	ld (hl),d			;540e
+	ld (hl),d			;540e   ; la velocidad Y, frenada
 	dec hl			;540f
 	ld (hl),e			;5410
 	inc hl			;5411
 	inc hl			;5412
-	ld e,(hl)			;5413
+	ld e,(hl)			;5413   ; ahora la X
 	inc hl			;5414
 	ld d,(hl)			;5415
 	ex de,hl			;5416
 	ld b,000h		;5417
-	ld c,a			;5419
-	bit 7,h		;541a
-	call z,L_5425		;541c
+	ld c,a			;5419   ; con el +14 que se habia guardado
+	bit 7,h		;541a   ; el mismo criterio de signo
+	call z,niega_bc		;541c
 	add hl,bc			;541f
 	ex de,hl			;5420
-	ld (hl),d			;5421
+	ld (hl),d			;5421   ; y la X, frenada
 	dec hl			;5422
 	ld (hl),e			;5423
 	ret			;5424
-L_5425:
-	ld a,c			;5425
+niega_bc:		; Complemento a dos de BC.
+	ld a,c			;5425   ; el byte bajo
 	cpl			;5426
 	ld c,a			;5427
-	ld a,b			;5428
+	ld a,b			;5428   ; y el alto
 	cpl			;5429
 	ld b,a			;542a
-	inc bc			;542b
+	inc bc			;542b   ; complemento a dos
 	ret			;542c
-L_542D:
+rehace_el_angulo:		; Vuelve a sacar pendiente, componentes y angulo de la bola que apunta 0xE194, a partir de su velocidad: la llamada de despues de cada rebote y de cada choque.
 	ld hl,(0e194h)		;542d
 saca_la_pendiente_del_vector:		; Toma la velocidad de la bola que apunta HL (+7 la componente Y, +9 la X, las dos de 16 bits con signo), se queda con los valores absolutos y apunta los dos espejos en 0xE1A2 (bit 0 = la Y iba hacia arriba, bit 1 = la X hacia la izquierda), divide las dos por 32 y compara: la mayor pasa a ser el divisor y la menor el dividendo, de modo que la pendiente que sale de la division siempre cae entre 0 y 255. Asi el juego guarda una direccion como un octante mas una pendiente, y le basta con tablas de 256 entradas.
-	ld a,007h		;5430
+	ld a,007h		;5430   ; al +7 del registro que llegue en HL
 	call suma_a_a_hl		;5432
-	ld e,(hl)			;5435
+	ld e,(hl)			;5435   ; la velocidad Y
 	inc hl			;5436
 	ld d,(hl)			;5437
 	inc hl			;5438
-	ld c,(hl)			;5439
+	ld c,(hl)			;5439   ; y la X
 	inc hl			;543a
 	ld b,(hl)			;543b
-	xor a			;543c
-	bit 7,d		;543d
-	jr z,L_5449		;543f
-	ex de,hl			;5441
+	xor a			;543c   ; A ira juntando los dos espejos
+	bit 7,d		;543d   ; la Y va hacia arriba?
+	jr z,espejo_de_la_x		;543f
+	ex de,hl			;5441   ; entonces se le da la vuelta
 	ex af,af'			;5442
-	call L_51BD		;5443
+	call niega_hl		;5443
 	ex de,hl			;5446
 	ex af,af'			;5447
-	inc a			;5448
-L_5449:
-	bit 7,b		;5449
-	jr z,L_5454		;544b
+	inc a			;5448   ; y queda apuntado en el bit 0
+espejo_de_la_x:		; La segunda mitad de 0x5430: si la velocidad X va hacia la izquierda, la niega y lo apunta en el bit 1 de 0xE1A2.
+	bit 7,b		;5449   ; y lo mismo con la X
+	jr z,reduce_las_dos_componentes		;544b
 	ex af,af'			;544d
-	call L_5425		;544e
+	call niega_bc		;544e   ; negada por BC, que es donde esta
 	ex af,af'			;5451
-	or 002h		;5452
-L_5454:
-	ld (0e1a2h),a		;5454
-	rr d		;5457
+	or 002h		;5452   ; en el bit 1
+reduce_las_dos_componentes:		; Divide las dos velocidades entre 32 a base de rotarlas cinco veces, y compara: la mayor sera el divisor y la menor el dividendo, que es lo que mantiene la pendiente dentro de un octante.
+	ld (0e1a2h),a		;5454   ; los dos espejos, guardados
+	rr d		;5457   ; cinco rotaciones: la velocidad entre 32
 	rr e		;5459
 	rr d		;545b
 	rr e		;545d
@@ -2767,7 +2767,7 @@ L_5454:
 	rr e		;5465
 	rr d		;5467
 	rr e		;5469
-	ld a,c			;546b
+	ld a,c			;546b   ; y las mismas cinco para la X, que acaba en A
 	rr b		;546c
 	rra			;546e
 	rr b		;546f
@@ -2778,11 +2778,11 @@ L_5454:
 	rra			;5477
 	rr b		;5478
 	rra			;547a
-	cp e			;547b
-	jr c,L_54E0		;547c
-	ld h,e			;547e
+	cp e			;547b   ; cual de las dos es la mayor
+	jr c,pendiente_con_la_x_mayor		;547c   ; manda la X: se cambian los papeles
+	ld h,e			;547e   ; la Y arriba, la X abajo
 	ld e,a			;547f
-	xor a			;5480
+	xor a			;5480   ; y con el byte bajo a cero, la division sale con ocho bits de fraccion
 	ld l,a			;5481
 convierte_pendiente_en_vector:		; Con la pendiente (0xE1A3/0xE1A4) lee las cuatro tablas de 0x54E6: deja las componentes en 0xE1A5/0xE1A6 y el angulo del tiro en 0xE1A1, con los reflejos de 0xE1A2
 	ld (0e1a4h),a		;5482
@@ -2798,11 +2798,11 @@ convierte_pendiente_en_vector:		; Con la pendiente (0xE1A3/0xE1A4) lee las cuatr
 	ld h,a			;5498
 	ld a,(0e1a3h)		;5499
 	ld e,a			;549c
-	call suma_a_a_hl		;549d
+	call suma_a_a_hl		;549d   ; la tabla, indexada por la pendiente
 	ld a,(hl)			;54a0
-	ld (0e1a5h),a		;54a1
-	ld a,d			;54a4
-	ld hl,055e6h		;54a5
+	ld (0e1a5h),a		;54a1   ; 0xE1A5: la componente del eje mayor
+	ld a,d			;54a4   ; el eje que salio mayor
+	ld hl,055e6h		;54a5   ; y la tabla se cruza con la otra
 	rra			;54a8
 	jr nc,L_54AE		;54a9
 	ld hl,054e6h		;54ab
@@ -2810,37 +2810,37 @@ L_54AE:
 	ld a,e			;54ae
 	call suma_a_a_hl		;54af
 	ld a,(hl)			;54b2
-	ld (0e1a6h),a		;54b3
+	ld (0e1a6h),a		;54b3   ; 0xE1A6: la componente del eje menor
 	ld a,d			;54b6
-	ld hl,056e6h		;54b7
+	ld hl,056e6h		;54b7   ; la tabla de angulos, y su gemela restada de 0x40
 	rra			;54ba
 	jr nc,L_54C0		;54bb
 	ld hl,05726h		;54bd
 L_54C0:
 	ld a,e			;54c0
-	srl a		;54c1
+	srl a		;54c1   ; esa tabla solo tiene 64 entradas, asi que la pendiente se divide entre cuatro
 	srl a		;54c3
 	call suma_a_a_hl		;54c5
-	ld b,(hl)			;54c8
-	ld a,(0e1a2h)		;54c9
+	ld b,(hl)			;54c8   ; el angulo dentro del octante
+	ld a,(0e1a2h)		;54c9   ; los dos espejos
 	ld c,000h		;54cc
 	bit 1,a		;54ce
 	jr z,L_54D4		;54d0
-	ld c,080h		;54d2
+	ld c,080h		;54d2   ; espejo en X: media vuelta
 L_54D4:
-	and a			;54d4
+	and a			;54d4   ; la PARIDAD de los dos espejos
 	ld a,b			;54d5
-	jp pe,L_54DB		;54d6
-	neg		;54d9
+	jp pe,L_54DB		;54d6   ; con los dos puestos, o con ninguno, el angulo va tal cual
+	neg		;54d9   ; con uno solo, del reves
 L_54DB:
 	add a,c			;54db
-	ld (0e1a1h),a		;54dc
+	ld (0e1a1h),a		;54dc   ; 0xE1A1: el angulo, ya en la vuelta entera
 	ret			;54df
-L_54E0:
-	ld h,a			;54e0
+pendiente_con_la_x_mayor:		; La otra rama de 0x5430: cuando la componente X es la mayor, el dividendo es la Y y 0xE1A4 sale a 1, que es lo que luego cruza las dos tablas.
+	ld h,a			;54e0   ; la componente mayor pasa a ser el dividendo
 	xor a			;54e1
 	ld l,a			;54e2
-	inc a			;54e3
+	inc a			;54e3   ; y 0xE1A4 a uno: es la X la que manda
 	jr convierte_pendiente_en_vector		;54e4
 
 ; ----------------------------------------------------------------------
@@ -2920,17 +2920,17 @@ DATA_tabla_de_angulo_complementario:
 
 
 carga_los_tiles_del_rotulo_grande:		; Copia 0x5788 a los patrones 0x2600: el apostrofe blanco y las letras verdes del BILLIARDS
-	ld de,02600h		;5766
+	ld de,02600h		;5766   ; 0x2600: los patrones del tile 0xC0 en adelante
 	ld hl,05788h		;5769
-	ld bc,000f8h		;576c
+	ld bc,000f8h		;576c   ; 248 bytes: treinta y un tiles
 	call copia_a_vram		;576f
-	ld de,00600h		;5772
+	ld de,00600h		;5772   ; el color del 0xC0
 	ld bc,00008h		;5775
-	ld a,0f0h		;5778
+	ld a,0f0h		;5778   ; blanco: es el apostrofe de KONAMI'S
 	call rellena_vram		;577a
-	ld de,00608h		;577d
+	ld de,00608h		;577d   ; y los treinta que siguen
 	ld bc,000f0h		;5780
-	ld a,0c0h		;5783
+	ld a,0c0h		;5783   ; verde: las letras grandes del BILLIARDS
 	jp rellena_vram		;5785
 
 ; ----------------------------------------------------------------------
@@ -2978,103 +2978,103 @@ DATA_tiles_del_rotulo_del_titulo:
 ; ======================================================================
 
 
-L_5880:
+boca_de_la_banda_izquierda:		; Adonde va la bola que se sale por la banda izquierda a la altura de una tronera. Aqui no se decide con la X y la Y por separado, sino con su SUMA y su RESTA: las boquillas estan achaflanadas a 45 grados, y una diagonal de 45 grados es justo el sitio donde X+Y o X-Y valen lo mismo. Segun el tramo, la bola entra (0x5980) o rebota en el chaflan (0x5923 y 0x593B).
 	ld a,c			;5880
-	cp 076h		;5881
-	jp c,L_5911		;5883
+	cp 076h		;5881   ; la mitad de arriba de la banda o la de abajo
+	jp c,esquina_de_arriba_a_la_izquierda		;5883
 L_5886:
 	ld a,b			;5886
-	sub c			;5887
+	sub c			;5887   ; la RESTA de las dos coordenadas: la diagonal de un chaflan
 	cp 058h		;5888
-	jp c,L_5980		;588a
+	jp c,emboca_la_bola		;588a   ; por dentro del chaflan: la bola entra
 	ld a,b			;588d
-	add a,c			;588e
+	add a,c			;588e   ; y la SUMA: la otra diagonal
 	cp 00dh		;588f
-	jp c,L_593B		;5891
+	jp c,rebota_en_el_chaflan_contrario		;5891   ; rebote en el chaflan
 	cp 01eh		;5894
-	jp nc,L_593B		;5896
-	ret			;5899
-L_589A:
+	jp nc,rebota_en_el_chaflan_contrario		;5896   ; y por el otro lado, tambien
+	ret			;5899   ; entremedias esta la boca, y por ahi no se toca nada
+boca_de_la_banda_derecha:		; La simetrica de 0x5880 para la banda derecha, con los mismos tramos de suma y resta corridos al otro lado.
 	ld a,c			;589a
 	cp 076h		;589b
 	jr c,L_58B9		;589d
 L_589F:
-	ld a,b			;589f
+	ld a,b			;589f   ; la suma de las dos coordenadas
 	add a,c			;58a0
 	cp 088h		;58a1
-	jp nc,L_5980		;58a3
+	jp nc,emboca_la_bola		;58a3   ; dentro: la bola entra
 	ld a,b			;58a6
-	sub c			;58a7
+	sub c			;58a7   ; y la resta
 	cp 0c4h		;58a8
-	jp c,L_5923		;58aa
+	jp c,rebota_en_el_chaflan		;58aa   ; rebote en el chaflan
 	cp 0d3h		;58ad
-	jp nc,L_5923		;58af
-	ret			;58b2
-L_58B3:
+	jp nc,rebota_en_el_chaflan		;58af   ; y en el otro
+	ret			;58b2   ; en medio esta la boca
+boca_de_la_banda_de_arriba:		; La banda de arriba: si la X no llega a 0x70 lo resuelve la esquina de la izquierda (0x5911), y si no, los chaflanes de este lado.
 	ld a,b			;58b3
 	cp 070h		;58b4
-	jp c,L_5911		;58b6
+	jp c,esquina_de_arriba_a_la_izquierda		;58b6
 L_58B9:
-	ld a,b			;58b9
+	ld a,b			;58b9   ; la resta de las dos
 	sub c			;58ba
 	cp 098h		;58bb
-	jp nc,L_5980		;58bd
+	jp nc,emboca_la_bola		;58bd   ; por dentro del chaflan: entra
 	ld a,b			;58c0
-	add a,c			;58c1
+	add a,c			;58c1   ; y la suma
 	cp 0b1h		;58c2
-	jp c,L_593B		;58c4
+	jp c,rebota_en_el_chaflan_contrario		;58c4   ; chaflan
 	cp 0c1h		;58c7
-	jp nc,L_593B		;58c9
-	ret			;58cc
-L_58CD:
-	ld a,b			;58cd
+	jp nc,rebota_en_el_chaflan_contrario		;58c9   ; el otro chaflan
+	ret			;58cc   ; y entremedias, la boca
+boquilla_de_la_tronera_central:		; Las dos troneras del centro, que no tienen chaflan sino dos paredes verticales. Si la bola se ha metido lo bastante (Y fuera de 0x2E-0xB1) entra; si no, y viene contra una de las dos paredes, se le da la vuelta a la velocidad X y sigue rodando dentro de la boquilla.
+	ld a,b			;58cd   ; la Y, contada desde arriba del todo
 	sub 02eh		;58ce
-	cp 084h		;58d0
-	jp nc,L_5980		;58d2
+	cp 084h		;58d0   ; 0x84 pixeles de boquilla: mas alla, la bola ya esta dentro
+	jp nc,emboca_la_bola		;58d2
 	ld a,c			;58d5
-	ld l,(ix+009h)		;58d6
+	ld l,(ix+009h)		;58d6   ; su velocidad X
 	ld h,(ix+00ah)		;58d9
-	cp 074h		;58dc
+	cp 074h		;58dc   ; la pared izquierda de la boquilla
 	jr nc,L_58E8		;58de
 	ex af,af'			;58e0
-	ld a,(ix+00ah)		;58e1
+	ld a,(ix+00ah)		;58e1   ; el byte alto de la velocidad X
 	and a			;58e4
-	ret p			;58e5
+	ret p			;58e5   ; va hacia la derecha, o sea alejandose: no hay rebote
 	jr L_58F0		;58e6
 L_58E8:
-	cp 07ch		;58e8
-	ret c			;58ea
-	ld a,(ix+00ah)		;58eb
+	cp 07ch		;58e8   ; la pared derecha
+	ret c			;58ea   ; entre las dos, campo libre
+	ld a,(ix+00ah)		;58eb   ; el signo de la velocidad
 	and a			;58ee
-	ret m			;58ef
+	ret m			;58ef   ; va hacia la izquierda: tampoco choca
 L_58F0:
-	call L_51BD		;58f0
+	call niega_hl		;58f0   ; contra la pared: la X del reves
 	ld (ix+009h),l		;58f3
 	ld (ix+00ah),h		;58f6
-	call L_542D		;58f9
+	call rehace_el_angulo		;58f9   ; y angulo nuevo
 	ld a,(0e1a1h)		;58fc
 	ld (ix+002h),a		;58ff
-	call L_53E3		;5902
-	jp L_4F14		;5905
-L_5908:
+	call L_53E3		;5902   ; el rebote tambien frena
+	jp olvida_con_quien_choco		;5905   ; y cuenta como choque nuevo
+boca_de_la_banda_de_abajo:		; La banda de abajo: reparte entre la mitad de arriba (0x5886) y la de abajo (0x589F) segun la Y.
 	ld a,b			;5908
 	cp 070h		;5909
 	jp c,L_5886		;590b
 	jp L_589F		;590e
-L_5911:
-	ld a,b			;5911
+esquina_de_arriba_a_la_izquierda:		; El cuarto juego de tramos, el de la esquina que queda entre las dos bandas que ya se han mirado.
+	ld a,b			;5911   ; la suma de las dos
 	add a,c			;5912
 	cp 048h		;5913
-	jp c,L_5980		;5915
+	jp c,emboca_la_bola		;5915   ; dentro: entra
 	ld a,b			;5918
-	sub c			;5919
+	sub c			;5919   ; y la resta
 	cp 01fh		;591a
-	jr c,L_5923		;591c
+	jr c,rebota_en_el_chaflan		;591c
 	cp 031h		;591e
-	jr nc,L_5923		;5920
+	jr nc,rebota_en_el_chaflan		;5920
 	ret			;5922
-L_5923:
-	ld hl,(0e194h)		;5923
+rebota_en_el_chaflan:		; Rebote contra una diagonal de 45 grados: intercambia las dos componentes de la velocidad, que es exactamente lo que hace un espejo puesto a 45 grados. Ni una multiplicacion.
+	ld hl,(0e194h)		;5923   ; el +7 de la bola
 	ld a,007h		;5926
 	call suma_a_a_hl		;5928
 	ld b,(hl)			;592b
@@ -3082,156 +3082,156 @@ L_5923:
 	ld c,(hl)			;592d
 	inc hl			;592e
 	ld d,(hl)			;592f
-	ld (hl),b			;5930
+	ld (hl),b			;5930   ; la velocidad Y pasa a ser la X
 	inc hl			;5931
 	ld e,(hl)			;5932
-	ld (hl),c			;5933
+	ld (hl),c			;5933   ; y la X pasa a ser la Y
 	dec hl			;5934
 	dec hl			;5935
 	ld (hl),e			;5936
 	dec hl			;5937
 	ld (hl),d			;5938
-	jr L_5959		;5939
-L_593B:
-	ld l,(ix+007h)		;593b
+	jr rehace_la_bola_tras_el_chaflan		;5939
+rebota_en_el_chaflan_contrario:		; La otra diagonal: intercambia las dos componentes Y ADEMAS les da la vuelta a las dos.
+	ld l,(ix+007h)		;593b   ; la velocidad Y
 	ld h,(ix+008h)		;593e
-	ld c,(ix+009h)		;5941
+	ld c,(ix+009h)		;5941   ; y la X
 	ld b,(ix+00ah)		;5944
-	call L_51BD		;5947
-	call L_5425		;594a
-	ld (ix+007h),c		;594d
+	call niega_hl		;5947   ; las dos del reves
+	call niega_bc		;594a
+	ld (ix+007h),c		;594d   ; y ademas cruzadas: el espejo de la otra diagonal
 	ld (ix+008h),b		;5950
 	ld (ix+009h),l		;5953
 	ld (ix+00ah),h		;5956
-L_5959:
-	call L_542D		;5959
+rehace_la_bola_tras_el_chaflan:		; Comun a los dos rebotes de chaflan: angulo nuevo en el +2 y frenado nuevo en el +13 y el +14.
+	call rehace_el_angulo		;5959
 	ld a,(0e1a1h)		;595c
-	ld (ix+002h),a		;595f
-	ld (ix+002h),a		;5962
+	ld (ix+002h),a		;595f   ; el angulo nuevo
+	ld (ix+002h),a		;5962   ; escrito DOS veces con el mismo valor: tres bytes que no hacen nada
 	ld a,(0e1a5h)		;5965
 	ld e,a			;5968
 	ld h,018h		;5969
-	call multiplica_h_por_e		;596b
+	call multiplica_h_por_e		;596b   ; el frenado, otra vez repartido
 	ld (ix+00dh),h		;596e
 	ld a,(0e1a6h)		;5971
 	ld e,a			;5974
 	ld h,018h		;5975
 	call multiplica_h_por_e		;5977
 	ld (ix+00eh),h		;597a
-	jp L_4F14		;597d
-L_5980:
-	ld a,(0e1adh)		;5980
+	jp olvida_con_quien_choco		;597d
+emboca_la_bola:		; La bola entra en la tronera: pide el sonido 4 (y el 5 ademas si la que cae es la blanca), sube el multiplicador de 0xE1AE, la saca de la mesa poniendo su +0 y su +1 a cero y su Y a 0xE0 -fuera de la pantalla-, y la apunta en las dos listas: 0xE1D0, la de esta tacada, y 0xE1D7, la de las que ya se ven arriba. La blanca no se apunta en ninguna: solo levanta la bandera 0xE1AD.
+	ld a,(0e1adh)		;5980   ; 0xE1AD: ya se habia embocado algo?
 	and a			;5983
-	ld a,004h		;5984
+	ld a,004h		;5984   ; sonido 4: la bola cae
 	call z,pide_un_sonido		;5986
-	ld a,(0e194h)		;5989
+	ld a,(0e194h)		;5989   ; el byte bajo del puntero: a cero solo la blanca
 	and a			;598c
-	ld a,005h		;598d
+	ld a,005h		;598d   ; sonido 5: y ademas el aviso de que la que ha caido es la blanca
 	call z,pide_un_sonido		;598f
-	ld hl,0e1aeh		;5992
+	ld hl,0e1aeh		;5992   ; 0xE1AE: cuantas seguidas llevan
 	ld a,(hl)			;5995
-	cp 005h		;5996
+	cp 005h		;5996   ; el multiplicador se queda en cinco
 	jr z,L_599B		;5998
 	inc (hl)			;599a
 L_599B:
 	ld hl,(0e194h)		;599b
 	xor a			;599e
-	ld (hl),a			;599f
+	ld (hl),a			;599f   ; el +0: fuera de la mesa
 	inc hl			;59a0
-	ld (hl),a			;59a1
+	ld (hl),a			;59a1   ; y el +1: parada
 	inc hl			;59a2
 	inc hl			;59a3
 	inc hl			;59a4
-	ld (hl),0e0h		;59a5
-	ld hl,0e1d7h		;59a7
-	ld de,0e1d0h		;59aa
+	ld (hl),0e0h		;59a5   ; la Y a 0xE0, que es fuera de la pantalla: el sprite deja de verse
+	ld hl,0e1d7h		;59a7   ; 0xE1D7: las bolas cobradas, las que se ven arriba
+	ld de,0e1d0h		;59aa   ; y 0xE1D0: las de esta tacada, las que van a puntuar
 L_59AD:
-	ld a,(de)			;59ad
+	ld a,(de)			;59ad   ; busca el primer hueco de la lista
 	and a			;59ae
 	jr z,L_59B4		;59af
 	inc de			;59b1
 	jr L_59AD		;59b2
 L_59B4:
 	ld a,(0e194h)		;59b4
-	and a			;59b7
+	and a			;59b7   ; la blanca no se cobra
 	jr nz,L_59BF		;59b8
 	inc a			;59ba
-	ld (0e1adh),a		;59bb
+	ld (0e1adh),a		;59bb   ; solo levanta la bandera de bola perdida
 	ret			;59be
 L_59BF:
-	ld (de),a			;59bf
+	ld (de),a			;59bf   ; apunta la bola en la lista de la tacada
 	ld b,a			;59c0
 L_59C1:
-	ld a,(hl)			;59c1
+	ld a,(hl)			;59c1   ; y busca hueco en la de arriba
 	and a			;59c2
 	inc hl			;59c3
 	jr nz,L_59C1		;59c4
 	dec hl			;59c6
-	ld (hl),b			;59c7
-L_59C8:
-	ld de,03893h		;59c8
-	ld bc,0e1d7h		;59cb
+	ld (hl),b			;59c7   ; donde tambien se apunta
+pinta_las_bolas_embocadas:		; Pinta la fila de bolas cobradas de 0xE1D7 en la fila 4 columna 19, cada una en un bloque de dos por dos tiles: el numero de tile sale del byte que la identifica dividido entre cuatro mas 0x98, y las cuatro casillas van con los tiles seguidos.
+	ld de,03893h		;59c8   ; fila 4, columna 19
+	ld bc,0e1d7h		;59cb   ; la lista de bolas cobradas
 	ld a,(00007h)		;59ce
 	exx			;59d1
 	ld c,a			;59d2
-	ld b,006h		;59d3
+	ld b,006h		;59d3   ; caben seis
 L_59D5:
 	exx			;59d5
 	ld a,(bc)			;59d6
 	and a			;59d7
-	jr z,L_5A10		;59d8
+	jr z,borra_lo_que_sobra_de_la_fila		;59d8   ; un cero cierra la lista
 	inc bc			;59da
-	rrca			;59db
+	rrca			;59db   ; el identificador entre cuatro
 	rrca			;59dc
-	add a,098h		;59dd
+	add a,098h		;59dd   ; y da el primero de los cuatro tiles de esa bola
 	ld h,a			;59df
 	call abre_la_vram_para_escribir		;59e0
 	ld a,h			;59e3
 	exx			;59e4
-	out (c),a		;59e5
+	out (c),a		;59e5   ; la casilla de arriba a la izquierda
 	exx			;59e7
-	push hl			;59e8
+	push hl			;59e8   ; dos instrucciones que no hacen nada: son el respiro que el VDP necesita entre dos escrituras
 	pop hl			;59e9
 	inc a			;59ea
-	inc a			;59eb
+	inc a			;59eb   ; el tile de dos mas alla
 	exx			;59ec
-	out (c),a		;59ed
+	out (c),a		;59ed   ; arriba a la derecha, aprovechando el autoincremento
 	exx			;59ef
 	dec a			;59f0
-	ld hl,00020h		;59f1
+	ld hl,00020h		;59f1   ; la fila de abajo
 	add hl,de			;59f4
 	ex de,hl			;59f5
 	ld h,a			;59f6
 	call abre_la_vram_para_escribir		;59f7
 	ld a,h			;59fa
 	exx			;59fb
-	out (c),a		;59fc
+	out (c),a		;59fc   ; abajo a la izquierda
 	exx			;59fe
 	inc a			;59ff
 	inc a			;5a00
 	push hl			;5a01
 	pop hl			;5a02
 	exx			;5a03
-	out (c),a		;5a04
+	out (c),a		;5a04   ; y abajo a la derecha
 	exx			;5a06
-	ld hl,0ffe2h		;5a07
+	ld hl,0ffe2h		;5a07   ; sube una fila y avanza dos columnas: la bola siguiente
 	add hl,de			;5a0a
 	ex de,hl			;5a0b
 	exx			;5a0c
 	djnz L_59D5		;5a0d
 	ret			;5a0f
-L_5A10:
-	ld a,(00007h)		;5a10
+borra_lo_que_sobra_de_la_fila:		; Apaga los bloques de dos por dos que quedan libres en la fila de bolas cobradas, con los mismos respiros para el VDP que usa la rutina que los pinta.
+	ld a,(00007h)		;5a10   ; el puerto del VDP
 	ld c,a			;5a13
-	ld b,000h		;5a14
-	di			;5a16
+	ld b,000h		;5a14   ; y el tile en blanco
+	di			;5a16   ; la fila entera de un tiron
 L_5A17:
 	call abre_la_vram_para_escribir		;5a17
 	out (c),b		;5a1a
-	push hl			;5a1c
+	push hl			;5a1c   ; el respiro que el VDP necesita
 	pop hl			;5a1d
 	out (c),b		;5a1e
-	ld hl,00020h		;5a20
+	ld hl,00020h		;5a20   ; la fila de abajo
 	add hl,de			;5a23
 	ex de,hl			;5a24
 	call abre_la_vram_para_escribir		;5a25
@@ -3239,39 +3239,39 @@ L_5A17:
 	push hl			;5a2a
 	pop hl			;5a2b
 	out (c),b		;5a2c
-	ld hl,0ffe2h		;5a2e
+	ld hl,0ffe2h		;5a2e   ; y de vuelta arriba, dos columnas mas alla
 	add hl,de			;5a31
 	ex de,hl			;5a32
 	exx			;5a33
-	dec b			;5a34
+	dec b			;5a34   ; el contador va en el juego alterno
 	exx			;5a35
 	jr nz,L_5A17		;5a36
 	ei			;5a38
 	ret			;5a39
-ensena_el_rate:		; El cartel del multiplicador de la apuesta
-	ld hl,0e1d0h		;5a3a
-	ld de,0e1d7h		;5a3d
-	ld c,(hl)			;5a40
+devuelve_las_bolas_a_la_mesa:		; El castigo por embocar la blanca, y por eso solo lo llama 0x44DD cuando 0xE1AD esta levantado: TODAS las bolas que habian caido en esa tacada vuelven al pano. Las borra de la lista de bolas cobradas de arriba, y a cada una le busca sitio con 0x5A99 antes de devolverle el +0 a 0xFF; la blanca vuelve a su Y=0x70 X=0x40 de siempre. Como no pasa por el recuento, esas bolas no se cobran.
+	ld hl,0e1d0h		;5a3a   ; las bolas embocadas en esta tacada
+	ld de,0e1d7h		;5a3d   ; y las que se ven arriba
+	ld c,(hl)			;5a40   ; la primera de la tacada
 	ld b,007h		;5a41
 L_5A43:
-	ld a,(de)			;5a43
+	ld a,(de)			;5a43   ; se busca en la lista de arriba
 	inc de			;5a44
 	dec b			;5a45
 	cp c			;5a46
 	jr nz,L_5A43		;5a47
-	dec de			;5a49
+	dec de			;5a49   ; y desde ahi
 	xor a			;5a4a
 L_5A4B:
-	ld (de),a			;5a4b
+	ld (de),a			;5a4b   ; se borra el resto: todo lo de esta tacada deja de estar cobrado
 	inc de			;5a4c
 	djnz L_5A4B		;5a4d
-	ld a,(hl)			;5a4f
+	ld a,(hl)			;5a4f   ; quedaba alguna?
 	and a			;5a50
 	jr z,L_5A77		;5a51
 L_5A53:
 	exx			;5a53
-	ld bc,07090h		;5a54
-	call L_5A99		;5a57
+	ld bc,07090h		;5a54   ; Y=0x70, X=0x90: por donde se empieza a buscar sitio
+	call busca_hueco_en_la_mesa		;5a57   ; el hueco sale en BC
 	ld a,b			;5a5a
 	exx			;5a5b
 	ld b,a			;5a5c
@@ -3279,84 +3279,84 @@ L_5A53:
 	ld a,c			;5a5e
 	exx			;5a5f
 	ld c,a			;5a60
-	ld a,(hl)			;5a61
+	ld a,(hl)			;5a61   ; la bola, y se la saca de la lista
 	ld (hl),000h		;5a62
-	ld d,0e1h		;5a64
+	ld d,0e1h		;5a64   ; el identificador ES el byte bajo de su registro
 	ld e,a			;5a66
 	ex de,hl			;5a67
-	ld (hl),0ffh		;5a68
-	add a,004h		;5a6a
+	ld (hl),0ffh		;5a68   ; el +0 a 0xFF: vuelve a la mesa
+	add a,004h		;5a6a   ; al +4
 	ld l,a			;5a6c
-	ld (hl),b			;5a6d
+	ld (hl),b			;5a6d   ; su Y
 	inc hl			;5a6e
 	inc hl			;5a6f
-	ld (hl),c			;5a70
+	ld (hl),c			;5a70   ; y su X
 	ex de,hl			;5a71
-	inc hl			;5a72
+	inc hl			;5a72   ; la siguiente de la lista
 	ld a,(hl)			;5a73
 	and a			;5a74
 	jr nz,L_5A53		;5a75
 L_5A77:
-	ld bc,07040h		;5a77
+	ld bc,07040h		;5a77   ; y la blanca vuelve a Y=0x70, X=0x40
 	ld hl,0e100h		;5a7a
-	ld (hl),0ffh		;5a7d
-	call L_5A99		;5a7f
+	ld (hl),0ffh		;5a7d   ; tambien a la mesa
+	call busca_hueco_en_la_mesa		;5a7f
 	ld (hl),b			;5a82
 	inc hl			;5a83
 	inc hl			;5a84
 	ld (hl),c			;5a85
 	xor a			;5a86
-	ld (0e1adh),a		;5a87
+	ld (0e1adh),a		;5a87   ; y se olvida que se habia perdido
 	ret			;5a8a
-L_5A8B:
+prueba_el_hueco_siguiente:		; El sitio no valia: se corre ocho pixeles a la derecha y, si se sale por 0xC1, vuelve al margen izquierdo dos pixeles mas abajo. Y a probar otra vez.
 	ld a,c			;5a8b
-	add a,008h		;5a8c
+	add a,008h		;5a8c   ; ocho pixeles mas a la derecha
 	ld c,a			;5a8e
-	cp 0c1h		;5a8f
+	cp 0c1h		;5a8f   ; y si se pasa del borde
 	jr c,L_5A97		;5a91
-	ld c,090h		;5a93
+	ld c,090h		;5a93   ; al margen, dos pixeles mas abajo
 	inc b			;5a95
 	inc b			;5a96
 L_5A97:
 	jr L_5A9C		;5a97
-L_5A99:
-	add a,004h		;5a99
+busca_hueco_en_la_mesa:		; Busca donde dejar una bola que vuelve al pano: recorre las otras seis y, con el mismo criterio de doce pixeles que usa el choque, acepta el sitio o pide el siguiente. Empieza en Y=0x70 X=0x90 y devuelve la posicion en BC.
+	add a,004h		;5a99   ; la Y de la bola que se esta colocando
 	ld l,a			;5a9b
 L_5A9C:
-	ld de,0e104h		;5a9c
+	ld de,0e104h		;5a9c   ; contra la Y de la primera
 L_5A9F:
 	ld a,l			;5a9f
-	cp e			;5aa0
+	cp e			;5aa0   ; menos contra si misma
 	jr z,L_5ABB		;5aa1
 	ld a,(de)			;5aa3
 	inc e			;5aa4
 	inc e			;5aa5
-	sub b			;5aa6
+	sub b			;5aa6   ; la distancia en Y
 	jr nc,L_5AAB		;5aa7
 	neg		;5aa9
 L_5AAB:
-	cp 00ch		;5aab
+	cp 00ch		;5aab   ; doce pixeles, el mismo criterio que el choque
 	jr nc,L_5AB9		;5aad
 	ld a,(de)			;5aaf
-	sub c			;5ab0
+	sub c			;5ab0   ; y la distancia en X
 	jr nc,L_5AB5		;5ab1
 	neg		;5ab3
 L_5AB5:
 	cp 00ch		;5ab5
-	jr c,L_5A8B		;5ab7
+	jr c,prueba_el_hueco_siguiente		;5ab7   ; demasiado cerca: hay que probar otro sitio
 L_5AB9:
 	dec e			;5ab9
 	dec e			;5aba
 L_5ABB:
-	ld a,010h		;5abb
+	ld a,010h		;5abb   ; la bola siguiente
 	add a,e			;5abd
 	ld e,a			;5abe
-	cp 070h		;5abf
+	cp 070h		;5abf   ; las siete
 	jr c,L_5A9F		;5ac1
 	ret			;5ac3
-L_5AC4:
-	ld a,(0e1b0h)		;5ac4
-	ld hl,05acdh		;5ac7
+animacion_del_recuento:		; El segundo despachador de la partida: las tres fases del cartel que va cobrando, una por una, las bolas embocadas en la tacada. El indice esta en 0xE1B0 y la tabla va detras del `call`.
+	ld a,(0e1b0h)		;5ac4   ; 0xE1B0: en que fase va el recuento
+	ld hl,05acdh		;5ac7   ; HL no lo usa el despachador: la tabla va detras del `call`
 	call despachador		;5aca
 
 ; ----------------------------------------------------------------------
@@ -3374,76 +3374,76 @@ DATA_tabla_de_la_animacion_del_rate:
 ; ======================================================================
 
 
-L_5AD3:
+recuento_arranca:		; Fase 0: pone el puntero de lectura al principio de la lista de bolas de esta tacada y pasa a la fase 1.
 	ld hl,0e1d0h		;5ad3
-	ld (0e1b2h),hl		;5ad6
+	ld (0e1b2h),hl		;5ad6   ; 0xE1B2 recorre la lista
 	ld a,001h		;5ad9
-	ld (0e1b0h),a		;5adb
+	ld (0e1b0h),a		;5adb   ; y a la fase 1
 	ret			;5ade
-L_5ADF:
-	ld hl,(0e1b2h)		;5adf
-	ld a,(0e1aeh)		;5ae2
+recuento_cobra_una_bola:		; Fase 1: coge la siguiente bola de la lista, la puntua y ensena el cartel. Los puntos son el NUMERO de la bola por cien, doblado una vez por cada bola que se lleve embocada seguida: con el multiplicador a 5 son dieciseis veces. Cuando la lista se acaba, mira si la mesa se ha quedado limpia.
+	ld hl,(0e1b2h)		;5adf   ; por donde iba
+	ld a,(0e1aeh)		;5ae2   ; las bolas seguidas que lleva
 	ld b,a			;5ae5
 	ld a,(hl)			;5ae6
-	and a			;5ae7
+	and a			;5ae7   ; la lista se ha acabado?
 	jr nz,L_5AF0		;5ae8
-	ld (0e1afh),a		;5aea
-	jp mira_si_la_mesa_esta_limpia		;5aed
+	ld (0e1afh),a		;5aea   ; entonces no queda recuento pendiente
+	jp mira_si_la_mesa_esta_limpia		;5aed   ; y a ver si la mesa se quedo limpia
 L_5AF0:
-	rrca			;5af0
+	rrca			;5af0   ; el identificador entre dieciseis: el NUMERO de la bola
 	rrca			;5af1
 	rrca			;5af2
 	rrca			;5af3
 	ld c,a			;5af4
-	add a,030h		;5af5
+	add a,030h		;5af5   ; y su ASCII, que tambien es su tile
 	ld (0e1b4h),a		;5af7
 	ld a,c			;5afa
-	inc hl			;5afb
+	inc hl			;5afb   ; la siguiente, para la proxima vuelta
 	ld (0e1b2h),hl		;5afc
 L_5AFF:
-	dec b			;5aff
+	dec b			;5aff   ; una vez menos que el multiplicador
 	jr z,L_5B06		;5b00
-	add a,a			;5b02
-	daa			;5b03
+	add a,a			;5b02   ; dobla
+	daa			;5b03   ; sin salirse del BCD
 	jr L_5AFF		;5b04
 L_5B06:
-	ld (0e1b5h),a		;5b06
+	ld (0e1b5h),a		;5b06   ; lo que vale esta bola, en centenas
 	ld d,a			;5b09
-	ld e,000h		;5b0a
-	call suma_al_marcador		;5b0c
-	ld a,(0e1b4h)		;5b0f
-	ld de,0386ah		;5b12
+	ld e,000h		;5b0a   ; las unidades no cuentan: son n x 100
+	call suma_al_marcador		;5b0c   ; y al marcador
+	ld a,(0e1b4h)		;5b0f   ; el numero de la bola
+	ld de,0386ah		;5b12   ; fila 3, columna 10
 	call escribe_en_vram		;5b15
 	inc de			;5b18
-	ld hl,05b85h		;5b19
+	ld hl,05b85h		;5b19   ; el resto del cartel
 	ld bc,00005h		;5b1c
 	call copia_a_vram		;5b1f
-	exx			;5b22
+	exx			;5b22   ; el puerto del VDP, que sigue autoincrementando detras del cartel
 	ld a,c			;5b23
 	exx			;5b24
 	ld c,a			;5b25
-	ld a,(0e1aeh)		;5b26
-	ld hl,05b89h		;5b29
+	ld a,(0e1aeh)		;5b26   ; el multiplicador
+	ld hl,05b89h		;5b29   ; 0x5B89, un byte antes de la tabla: el 0xB9 del rotulo hace de valor para el indice cero
 	call suma_a_a_hl		;5b2c
 	ld a,(hl)			;5b2f
 	ld b,a			;5b30
-	rra			;5b31
+	rra			;5b31   ; su digito de las decenas
 	rra			;5b32
 	rra			;5b33
 	rra			;5b34
 	and 00fh		;5b35
-	jr z,L_5B3D		;5b37
+	jr z,L_5B3D		;5b37   ; si es cero no se pinta: nada de un 01
 	add a,030h		;5b39
 	out (c),a		;5b3b
 L_5B3D:
 	ld a,b			;5b3d
-	and 00fh		;5b3e
+	and 00fh		;5b3e   ; y el de las unidades
 	add a,030h		;5b40
 	out (c),a		;5b42
-	ld a,0b8h		;5b44
-	nop			;5b46
+	ld a,0b8h		;5b44   ; 0xB8: el signo de multiplicar
+	nop			;5b46   ; hueco para el VDP
 	out (c),a		;5b47
-	ld a,(0e1b5h)		;5b49
+	ld a,(0e1b5h)		;5b49   ; y los puntos que se acaban de sumar
 	rra			;5b4c
 	rra			;5b4d
 	rra			;5b4e
@@ -3457,25 +3457,25 @@ L_5B56:
 	and 00fh		;5b5b
 	add a,030h		;5b5d
 	out (c),a		;5b5f
-	ld a,030h		;5b61
+	ld a,030h		;5b61   ; los dos ceros del final
 	nop			;5b63
 	out (c),a		;5b64
-	push hl			;5b66
+	push hl			;5b66   ; otro respiro
 	pop hl			;5b67
 	out (c),a		;5b68
 	ld hl,0e1b0h		;5b6a
-	inc (hl)			;5b6d
+	inc (hl)			;5b6d   ; a la fase 2
 	inc hl			;5b6e
-	ld a,080h		;5b6f
+	ld a,080h		;5b6f   ; y 0x80 cuadros de cartel
 	ld (hl),a			;5b71
 	ret			;5b72
-L_5B73:
+recuento_borra_el_cartel:		; Fase 2: espera los 0x80 cuadros que le dejo la fase anterior y borra los trece tiles del cartel.
 	ld hl,0e1b1h		;5b73
-	dec (hl)			;5b76
+	dec (hl)			;5b76   ; mientras dure la espera
 	ret nz			;5b77
 	dec hl			;5b78
-	dec (hl)			;5b79
-	ld de,0386ah		;5b7a
+	dec (hl)			;5b79   ; agotada, se vuelve a la fase 1 a por la bola siguiente
+	ld de,0386ah		;5b7a   ; los trece tiles del cartel
 	ld bc,0000dh		;5b7d
 	ld a,000h		;5b80
 	jp rellena_vram		;5b82
@@ -3502,29 +3502,29 @@ DATA_multiplicadores_del_rate:
 ; ======================================================================
 
 
-L_5B90:
+pinta_el_rate:		; El rotulo RATE de la fila 5 columna 4 y, detras, el multiplicador que se cobrara por la SIGUIENTE bola: aqui la tabla se indexa desde 0x5B8A, mientras que el cartel del recuento (0x5B29) la indexa desde 0x5B89, un byte antes, y por eso ensena el que se acaba de aplicar.
 	ld hl,05bbfh		;5b90
 	ld bc,00005h		;5b93
-	ld de,038a4h		;5b96
+	ld de,038a4h		;5b96   ; fila 5, columna 4
 	call copia_a_vram		;5b99
 	ld a,(0e1aeh)		;5b9c
-	ld hl,05b8ah		;5b9f
+	ld hl,05b8ah		;5b9f   ; la tabla desde su primer valor, no desde el byte de antes
 	call suma_a_a_hl		;5ba2
 	ld a,(hl)			;5ba5
 	ld c,a			;5ba6
-	rra			;5ba7
+	rra			;5ba7   ; la decena del multiplicador
 	rra			;5ba8
 	rra			;5ba9
 	rra			;5baa
 	and 00fh		;5bab
-	jr z,L_5BB1		;5bad
+	jr z,L_5BB1		;5bad   ; y si es cero no se pinta
 	add a,030h		;5baf
 L_5BB1:
 	exx			;5bb1
 	out (c),a		;5bb2
 	exx			;5bb4
 	ld a,c			;5bb5
-	and 00fh		;5bb6
+	and 00fh		;5bb6   ; la unidad
 	add a,030h		;5bb8
 	exx			;5bba
 	out (c),a		;5bbb
@@ -3545,167 +3545,167 @@ DATA_rotulo_rate:
 
 pide_un_sonido:		; Encola el numero A si su canal esta libre o suena algo menos prioritario: canal de 0xE024 para numeros bajos, 0xE012 para 0x87-0x89, y el tercero para el resto; el puntero sale de la tabla de 0x5D1C
 	ld hl,0e002h		;5bc4
-	bit 6,(hl)		;5bc7
-	ret z			;5bc9
+	bit 6,(hl)		;5bc7   ; el bit 6 de 0xE002: solo hay sonido con partida de verdad
+	ret z			;5bc9   ; en el attract no suena nada
 L_5BCA:
-	ld b,002h		;5bca
-	ld hl,0e012h		;5bcc
-	cp 087h		;5bcf
+	ld b,002h		;5bca   ; la entrada que se salta esa comprobacion: la usan el arranque y el choque de bolas
+	ld hl,0e012h		;5bcc   ; de entrada, dos canales desde el primero
+	cp 087h		;5bcf   ; por debajo de 0x87 es un efecto
 	jr c,L_5BDA		;5bd1
-	cp 08ah		;5bd3
+	cp 08ah		;5bd3   ; de 0x87 a 0x89, dos canales
 	jr c,L_5BDE		;5bd5
-	inc b			;5bd7
+	inc b			;5bd7   ; y de 0x8A en adelante, los TRES
 	jr L_5BDE		;5bd8
 L_5BDA:
-	dec b			;5bda
-	ld hl,0e024h		;5bdb
+	dec b			;5bda   ; un solo canal
+	ld hl,0e024h		;5bdb   ; y el tercero, 0xE022
 L_5BDE:
-	cp (hl)			;5bde
-	jr c,L_5C04		;5bdf
+	cp (hl)			;5bde   ; el numero que suena ahora en ese canal
+	jr c,L_5C04		;5bdf   ; lo que suena pesa mas: el nuevo se pierde
 	ld c,a			;5be1
-	and 03fh		;5be2
-	add a,a			;5be4
-	ld de,05d1ah		;5be5
+	and 03fh		;5be2   ; los seis bits de abajo son el numero de partitura
+	add a,a			;5be4   ; dos bytes por puntero
+	ld de,05d1ah		;5be5   ; 0x5D1A, dos antes de la tabla: el numero 1 es el primero
 	call suma_a_a_de		;5be8
 L_5BEB:
-	dec hl			;5beb
+	dec hl			;5beb   ; del +2 al +0 del canal
 	dec hl			;5bec
-	ld (hl),001h		;5bed
+	ld (hl),001h		;5bed   ; el contador, a uno: la primera nota entra en el cuadro siguiente
 	inc hl			;5bef
 	ld (hl),001h		;5bf0
 	inc hl			;5bf2
 	ld a,c			;5bf3
-	ld (hl),a			;5bf4
+	ld (hl),a			;5bf4   ; el numero de sonido, que tambien es su prioridad
 	inc hl			;5bf5
 	ld a,(de)			;5bf6
-	ld (hl),a			;5bf7
+	ld (hl),a			;5bf7   ; y el puntero a la partitura
 	inc hl			;5bf8
 	inc de			;5bf9
 	ld a,(de)			;5bfa
 	ld (hl),a			;5bfb
 	ld a,007h		;5bfc
-	call suma_a_a_hl		;5bfe
-	inc de			;5c01
+	call suma_a_a_hl		;5bfe   ; el canal siguiente, nueve bytes mas alla
+	inc de			;5c01   ; con el puntero siguiente de la tabla: un sonido de tres canales se lleva tres seguidos
 	djnz L_5BEB		;5c02
 L_5C04:
 	ret			;5c04
-L_5C05:
+repite_la_partitura:		; El 0xFE de una partitura: vuelve a pedir el mismo numero de sonido que hay en el +2 del canal, y con eso empieza otra vez desde el principio.
 	ld a,(ix+002h)		;5c05
 	push bc			;5c08
 	call pide_un_sonido		;5c09
 	pop bc			;5c0c
 	ret			;5c0d
 toca_el_sonido:		; El paso del driver en cada interrupcion: tres canales de 9 bytes desde 0xE010, con 0xFD para los parametros, 0xFE para repetir y 0xFF de fin
-	ld c,001h		;5c0e
-	ld ix,0e010h		;5c10
+	ld c,001h		;5c0e   ; C es el registro alto del par de tono del canal A
+	ld ix,0e010h		;5c10   ; el primer canal
 	exx			;5c14
-	ld b,003h		;5c15
-	ld de,00009h		;5c17
+	ld b,003h		;5c15   ; los tres
+	ld de,00009h		;5c17   ; de nueve en nueve bytes
 L_5C1A:
 	exx			;5c1a
-	ld a,(ix+002h)		;5c1b
+	ld a,(ix+002h)		;5c1b   ; el numero de sonido: cero es canal libre
 	or a			;5c1e
-	call nz,L_5C2B		;5c1f
-	inc c			;5c22
+	call nz,paso_de_un_canal		;5c1f
+	inc c			;5c22   ; los registros de tono van de dos en dos
 	inc c			;5c23
 	exx			;5c24
-	add ix,de		;5c25
+	add ix,de		;5c25   ; y el canal, de nueve en nueve
 	djnz L_5C1A		;5c27
 	exx			;5c29
 	ret			;5c2a
-L_5C2B:
-	jp m,L_5C82		;5c2b
-	dec (ix+000h)		;5c2e
-	ret nz			;5c31
-L_5C32:
-	ld l,(ix+003h)		;5c32
+paso_de_un_canal:		; Un cuadro de un canal: si el numero de sonido lleva el bit 7 es musica y pasa por la envolvente (0x5C82); si no, es un efecto y solo cuenta la duracion.
+	jp m,decae_el_volumen		;5c2b   ; el bit 7 del numero separa la musica de los efectos
+	dec (ix+000h)		;5c2e   ; la nota en curso
+	ret nz			;5c31   ; mientras dure, nada que hacer
+lee_la_orden_siguiente:		; Coge el byte siguiente de la partitura: 0xFF calla el canal, 0xFE lo hace repetir, y cualquier otro es una nota.
+	ld l,(ix+003h)		;5c32   ; el puntero a la partitura
 	ld h,(ix+004h)		;5c35
 	ld a,(hl)			;5c38
-	cp 0feh		;5c39
-	jr z,L_5C05		;5c3b
-	jr nc,L_5C7B		;5c3d
-	bit 7,(ix+002h)		;5c3f
-	jp nz,L_5CAB		;5c43
-	and 0f0h		;5c46
-	cp 020h		;5c48
+	cp 0feh		;5c39   ; 0xFE: volver al principio
+	jr z,repite_la_partitura		;5c3b
+	jr nc,calla_el_canal		;5c3d   ; 0xFF: se acabo
+	bit 7,(ix+002h)		;5c3f   ; y el modo musica va por otro lado
+	jp nz,nota_del_modo_musica		;5c43
+	and 0f0h		;5c46   ; el nibble alto de la orden
+	cp 020h		;5c48   ; 0x20: la orden trae duracion nueva
 	jr nz,L_5C53		;5c4a
 	ld a,(hl)			;5c4c
 	and 00fh		;5c4d
-	ld (ix+001h),a		;5c4f
+	ld (ix+001h),a		;5c4f   ; que se guarda en el +1
 	inc hl			;5c52
 L_5C53:
-	ld a,(hl)			;5c53
+	ld a,(hl)			;5c53   ; el nibble alto es el volumen
 	and 0f0h		;5c54
 	ld b,a			;5c56
-	xor (hl)			;5c57
+	xor (hl)			;5c57   ; y el bajo, el byte alto del tono
 	ld d,a			;5c58
 	inc hl			;5c59
-	ld e,(hl)			;5c5a
+	ld e,(hl)			;5c5a   ; con el byte que sigue completa el divisor
 	inc hl			;5c5b
-	ld (ix+003h),l		;5c5c
+	ld (ix+003h),l		;5c5c   ; el puntero, ya adelantado
 	ld (ix+004h),h		;5c5f
 	ex de,hl			;5c62
-	call L_5CFA		;5c63
+	call escribe_el_tono		;5c63   ; y el tono al PSG
 	ld a,b			;5c66
-	rrca			;5c67
+	rrca			;5c67   ; el volumen baja a los cuatro bits de abajo
 	rrca			;5c68
 	rrca			;5c69
 	rrca			;5c6a
 	and 00fh		;5c6b
-L_5C6D:
-	ld h,a			;5c6d
-	ld a,(ix+001h)		;5c6e
-	ld (ix+000h),a		;5c71
-	add a,003h		;5c74
+pon_volumen_y_duracion:		; Recarga el contador de la nota (+0), arma la cuenta de la envolvente (+8) y escribe el volumen. El registro de volumen sale de rotar C -que vale 1, 3 o 5- y sumarle 0x88: da 8, 9 y 10, que son justo los tres registros de volumen del PSG.
+	ld h,a			;5c6d   ; el volumen que toca
+	ld a,(ix+001h)		;5c6e   ; la duracion de la nota
+	ld (ix+000h),a		;5c71   ; al contador que la va gastando
+	add a,003h		;5c74   ; tres mas para la envolvente
 	ld (ix+008h),a		;5c76
 	jr L_5CA3		;5c79
-L_5C7B:
-	xor a			;5c7b
+calla_el_canal:		; El 0xFF de fin: borra el numero de sonido, con lo que el canal queda libre, y pone el volumen a cero.
+	xor a			;5c7b   ; el canal queda libre
 	ld (ix+002h),a		;5c7c
-	ld h,a			;5c7f
+	ld h,a			;5c7f   ; y a volumen cero
 	jr L_5CA3		;5c80
-L_5C82:
-	dec (ix+000h)		;5c82
-	jr z,L_5C32		;5c85
-	dec (ix+008h)		;5c87
+decae_el_volumen:		; La envolvente por programa del modo musica: mientras dura la nota, va bajando el volumen de uno en uno a un ritmo que sale de comparar los dos contadores.
+	dec (ix+000h)		;5c82   ; la nota en curso
+	jr z,lee_la_orden_siguiente		;5c85   ; agotada: a por la siguiente
+	dec (ix+008h)		;5c87   ; el contador de la envolvente
 	ld a,(ix+008h)		;5c8a
-	cp (ix+000h)		;5c8d
+	cp (ix+000h)		;5c8d   ; cuando los dos coinciden toca bajar el volumen
 	jr nz,L_5C97		;5c90
-	cp 003h		;5c92
+	cp 003h		;5c92   ; al final de la nota, mas deprisa
 	jr c,L_5C9A		;5c94
 	ret			;5c96
 L_5C97:
-	dec (ix+008h)		;5c97
+	dec (ix+008h)		;5c97   ; y si no, se adelanta otra unidad
 L_5C9A:
-	ld a,(ix+007h)		;5c9a
+	ld a,(ix+007h)		;5c9a   ; el volumen de ahora
 	dec a			;5c9d
-	ret m			;5c9e
+	ret m			;5c9e   ; a cero no se baja mas
 	ld (ix+007h),a		;5c9f
 	ld h,a			;5ca2
 L_5CA3:
 	ld a,c			;5ca3
-	rrca			;5ca4
-	add a,088h		;5ca5
+	rrca			;5ca4   ; C vale 1, 3 o 5 y la rotacion lo deja en 0x80, 0x81 o 0x82
+	add a,088h		;5ca5   ; que mas 0x88 dan los registros 8, 9 y 10: los tres volumenes
 	ld e,h			;5ca7
 	jp 00093h		;5ca8   ; BIOS WRTPSG - Writes data to PSG-register
-L_5CAB:
-	cp 0fdh		;5cab
+nota_del_modo_musica:		; Una orden del modo musica: el 0xFD trae parametros -la octava en los tres bits de abajo y el volumen en los de arriba-, y una nota normal trae la duracion en el nibble alto y el semitono en el bajo, con el 12 haciendo de silencio.
+	cp 0fdh		;5cab   ; 0xFD: la orden trae parametros
 	jr nz,L_5CBF		;5cad
 	inc hl			;5caf
 	ld a,(hl)			;5cb0
-	and 007h		;5cb1
+	and 007h		;5cb1   ; los tres bits de abajo: cuantas octavas se baja
 	ld (ix+005h),a		;5cb3
 	xor (hl)			;5cb6
 	rrca			;5cb7
 	rrca			;5cb8
 	rrca			;5cb9
-	ld (ix+006h),a		;5cba
+	ld (ix+006h),a		;5cba   ; y los de arriba, el volumen de ataque
 	inc hl			;5cbd
 	ld a,(hl)			;5cbe
 L_5CBF:
-	and 00fh		;5cbf
+	and 00fh		;5cbf   ; el nibble bajo: el semitono
 	ld b,a			;5cc1
-	xor (hl)			;5cc2
+	xor (hl)			;5cc2   ; y el alto, la duracion
 	inc hl			;5cc3
 	ld (ix+003h),l		;5cc4
 	ld (ix+004h),h		;5cc7
@@ -3713,34 +3713,34 @@ L_5CBF:
 	rrca			;5ccb
 	rrca			;5ccc
 	rrca			;5ccd
-	ld hl,05d14h		;5cce
+	ld hl,05d14h		;5cce   ; la tabla de las ocho duraciones
 	call suma_a_a_hl		;5cd1
 	ld a,(hl)			;5cd4
-	ld (ix+001h),a		;5cd5
+	ld (ix+001h),a		;5cd5   ; al +1 del canal
 	ld a,b			;5cd8
-	sub 00ch		;5cd9
+	sub 00ch		;5cd9   ; el semitono 12 es un silencio
 	jr z,L_5CE3		;5cdb
 	ld a,(ix+006h)		;5cdd
-	ld (ix+007h),a		;5ce0
+	ld (ix+007h),a		;5ce0   ; y en los demas el volumen vuelve al de ataque
 L_5CE3:
-	call L_5C6D		;5ce3
+	call pon_volumen_y_duracion		;5ce3
 	ld a,b			;5ce6
-	ld hl,05d08h		;5ce7
+	ld hl,05d08h		;5ce7   ; la tabla de semitonos
 	call suma_a_a_hl		;5cea
-	ld l,(hl)			;5ced
+	ld l,(hl)			;5ced   ; el divisor de la octava mas aguda
 	ld h,000h		;5cee
-	ld a,(ix+005h)		;5cf0
+	ld a,(ix+005h)		;5cf0   ; y cuantas octavas hay que bajar
 	or a			;5cf3
-	jr z,L_5CFA		;5cf4
+	jr z,escribe_el_tono		;5cf4
 	ld b,a			;5cf6
 L_5CF7:
-	add hl,hl			;5cf7
+	add hl,hl			;5cf7   ; doblar el divisor es bajar una octava
 	djnz L_5CF7		;5cf8
-L_5CFA:
+escribe_el_tono:		; Escribe HL en el par de registros de tono del canal, el alto primero y el bajo despues.
 	ld a,c			;5cfa
 	ld e,h			;5cfb
-	call 00093h		;5cfc   ; BIOS WRTPSG - Writes data to PSG-register
-	dec c			;5cff
+	call 00093h		;5cfc   ; BIOS WRTPSG - Writes data to PSG-register | el byte alto del tono
+	dec c			;5cff   ; y el registro de al lado, el bajo
 	ld a,c			;5d00
 	ld e,l			;5d01
 	call 00093h		;5d02   ; BIOS WRTPSG - Writes data to PSG-register
@@ -3924,127 +3924,127 @@ DATA_tabla_del_despachador_5EB6:
 
 
 L_5EC1:
-	xor a			;5ec1
+	xor a			;5ec1   ; 0xE002 a cero: sin bit 6, ni hay puntuacion ni suena nada
 	ld (0e002h),a		;5ec2
-	call L_4466		;5ec5
+	call L_4466		;5ec5   ; el mismo arranque de partida que usa el estado 8
 	jr L_5EE2		;5ec8
 L_5ECA:
-	call cortina_de_borrado		;5eca
+	call cortina_de_borrado		;5eca   ; la cortina, otra vez desde el principio
 	ret p			;5ecd
-	call L_4474		;5ece
+	call L_4474		;5ece   ; y lo que hace el estado 9 sin la parte del marcador
 	jr L_5EE2		;5ed1
 L_5ED3:
 	ld hl,0e004h		;5ed3
 	dec (hl)			;5ed6
 	ret nz			;5ed7
-	call L_44AC		;5ed8
-	ld a,021h		;5edb
+	call L_44AC		;5ed8   ; y lo que hace el estado 10
+	ld a,021h		;5edb   ; 0x21: la direccion de arranque de la mira, con dos bits puestos para que las rotaciones ciclen
 	ld (0e1fah),a		;5edd
 	jr L_5EE2		;5ee0
 L_5EE2:
-	ld hl,0e1f0h		;5ee2
+	ld hl,0e1f0h		;5ee2   ; al submodo siguiente
 	inc (hl)			;5ee5
 L_5EE6:
-	ld a,007h		;5ee6
+	ld a,007h		;5ee6   ; y el estado global vuelve al 7, que es quien llama aqui: el bucle del attract
 	ld (0e000h),a		;5ee8
 	ret			;5eeb
-L_5EEC:
-	ld a,(0e19fh)		;5eec
+attract_apunta_y_tira:		; La maquina jugando: busca la primera bola de color que siga en la mesa, mide el angulo que hay de la blanca a esa bola y el que hay de la blanca a la mira, y si no coinciden mueve la mira. Cuando coinciden -y solo con la barra de fuerza en 3- ESCRIBE EL BOTON DE TIRO en 0xE008/0xE009, las mismas variables donde deja las teclas el jugador. No hay codigo de juego aparte: el attract se pilota a si mismo por la puerta del teclado, y usa la misma trigonometria que la partida.
+	ld a,(0e19fh)		;5eec   ; hay un tiro rodando?
 	and a			;5eef
 	jr nz,L_5F26		;5ef0
-	ld de,0e100h		;5ef2
+	ld de,0e100h		;5ef2   ; desde la bola siguiente a la blanca
 L_5EF5:
-	ld a,010h		;5ef5
+	ld a,010h		;5ef5   ; de dieciseis en dieciseis
 	call suma_a_a_de		;5ef7
-	ld a,(de)			;5efa
+	ld a,(de)			;5efa   ; la primera que siga en la mesa
 	and a			;5efb
 	jr z,L_5EF5		;5efc
 	ld a,003h		;5efe
-	call suma_a_a_de		;5f00
-	call L_5F6D		;5f03
+	call suma_a_a_de		;5f00   ; su posicion
+	call angulo_desde_la_blanca		;5f03   ; el angulo de la blanca a esa bola
 	push af			;5f06
-	ld de,0e173h		;5f07
-	call L_5F6D		;5f0a
+	ld de,0e173h		;5f07   ; y el de la blanca a la mira
+	call angulo_desde_la_blanca		;5f0a
 	ld b,a			;5f0d
 	pop af			;5f0e
-	sub b			;5f0f
+	sub b			;5f0f   ; cuanto se diferencian
 	inc a			;5f10
-	cp 002h		;5f11
+	cp 002h		;5f11   ; con uno de margen, ya se puede tirar
 	ld a,001h		;5f13
-	ld hl,0e008h		;5f15
-	jr nc,L_5F42		;5f18
-	ld a,(0e1a0h)		;5f1a
-	sub 003h		;5f1d
+	ld hl,0e008h		;5f15   ; las variables donde el jugador deja sus teclas
+	jr nc,L_5F42		;5f18   ; todavia no apunta: hay que mover la mira
+	ld a,(0e1a0h)		;5f1a   ; la barra de fuerza
+	sub 003h		;5f1d   ; la maquina solo tira con la barra al maximo
 	jr nz,L_5F3F		;5f1f
-	ld (hl),a			;5f21
-	ld a,010h		;5f22
+	ld (hl),a			;5f21   ; sin tecla en el cuadro anterior...
+	ld a,010h		;5f22   ; ...y el boton de tiro en este: el flanco que 0x5229 espera
 L_5F24:
 	inc hl			;5f24
 	ld (hl),a			;5f25
 L_5F26:
-	call estado_11_la_tacada		;5f26
+	call estado_11_la_tacada		;5f26   ; y a partir de aqui, la partida normal
 	ld a,(0e000h)		;5f29
-	cp 00fh		;5f2c
+	cp 00fh		;5f2c   ; estado 15: mesa completada
 	jr z,L_5F35		;5f2e
-	ld a,(0e00ch)		;5f30
+	ld a,(0e00ch)		;5f30   ; o la tacada se ha terminado
 	and a			;5f33
 	ret z			;5f34
 L_5F35:
 	xor a			;5f35
 	ld (0e00dh),a		;5f36
 	inc a			;5f39
-	ld (0e00bh),a		;5f3a
+	ld (0e00bh),a		;5f3a   ; 0xE00B a uno: la vuelta al titulo ya no arranca otro attract
 	jr L_5EE6		;5f3d
 L_5F3F:
-	xor a			;5f3f
+	xor a			;5f3f   ; fuera del flanco no se pulsa nada
 	jr L_5F24		;5f40
 L_5F42:
 	ld c,000h		;5f42
-	ld a,(0e176h)		;5f44
-	cp 0e1h		;5f47
+	ld a,(0e176h)		;5f44   ; la X de la mira
+	cp 0e1h		;5f47   ; pegada al tope derecho?
 	jr nz,L_5F4C		;5f49
 	inc c			;5f4b
 L_5F4C:
-	cp 00eh		;5f4c
+	cp 00eh		;5f4c   ; o al izquierdo
 	jr nz,L_5F51		;5f4e
 	inc c			;5f50
 L_5F51:
 	ld a,(0e174h)		;5f51
-	cp 036h		;5f54
+	cp 036h		;5f54   ; la Y contra el tope de arriba
 	jr nz,L_5F59		;5f56
 	inc c			;5f58
 L_5F59:
-	cp 0a9h		;5f59
+	cp 0a9h		;5f59   ; y contra el de abajo
 	jr nz,L_5F5E		;5f5b
 	inc c			;5f5d
 L_5F5E:
-	dec c			;5f5e
+	dec c			;5f5e   ; ninguno de los cuatro: se sigue en la misma direccion
 	ld a,(0e1fah)		;5f5f
 	jr z,L_5F69		;5f62
-	rlca			;5f64
+	rlca			;5f64   ; en una esquina, dos rotaciones cambian de direccion
 	rlca			;5f65
 	ld (0e1fah),a		;5f66
 L_5F69:
-	and 00fh		;5f69
+	and 00fh		;5f69   ; los cuatro bits de abajo son las cuatro direcciones
 	jr L_5F24		;5f6b
-L_5F6D:
-	ld hl,0e103h		;5f6d
+angulo_desde_la_blanca:		; El angulo que hay de la bola blanca al punto que trae DE: resta las dos coordenadas de 16 bits, las divide entre ocho para que quepan, las deja donde 0x5430 espera una velocidad -0xE1EA hace de bola falsa- y devuelve el angulo en A.
+	ld hl,0e103h		;5f6d   ; 0xE103: la posicion de la blanca en 16 bits
 	ld a,(de)			;5f70
-	sub (hl)			;5f71
+	sub (hl)			;5f71   ; la resta, byte a byte
 	ld c,a			;5f72
 	inc hl			;5f73
 	inc de			;5f74
 	ld a,(de)			;5f75
 	sbc a,(hl)			;5f76
 	ld b,a			;5f77
-	ld a,000h		;5f78
+	ld a,000h		;5f78   ; y el signo se extiende a un tercer byte
 	jr nc,L_5F7D		;5f7a
 	dec a			;5f7c
 L_5F7D:
 	inc hl			;5f7d
 	inc de			;5f7e
-	call L_5FA4		;5f7f
-	ld (0e1f1h),bc		;5f82
+	call divide_abc_entre_ocho		;5f7f   ; entre ocho, que si no se sale de rango
+	ld (0e1f1h),bc		;5f82   ; donde 0x5430 espera la velocidad Y
 	ld a,(de)			;5f86
 	sub (hl)			;5f87
 	ld c,a			;5f88
@@ -4057,18 +4057,18 @@ L_5F7D:
 	jr nc,L_5F93		;5f90
 	dec a			;5f92
 L_5F93:
-	call L_5FA4		;5f93
-	ld (0e1f3h),bc		;5f96
-	ld hl,0e1eah		;5f9a
+	call divide_abc_entre_ocho		;5f93
+	ld (0e1f3h),bc		;5f96   ; y la X
+	ld hl,0e1eah		;5f9a   ; 0xE1EA hace de bola: su +7 y su +9 son las dos diferencias
 	call saca_la_pendiente_del_vector		;5f9d
-	ld a,(0e1a1h)		;5fa0
+	ld a,(0e1a1h)		;5fa0   ; y el angulo sale por A
 	ret			;5fa3
-L_5FA4:
+divide_abc_entre_ocho:		; Tres desplazamientos aritmeticos del numero de 24 bits A:BC, conservando el signo.
 	ex af,af'			;5fa4
-	ld a,003h		;5fa5
+	ld a,003h		;5fa5   ; tres desplazamientos
 L_5FA7:
 	ex af,af'			;5fa7
-	sra a		;5fa8
+	sra a		;5fa8   ; el aritmetico conserva el signo
 	rr b		;5faa
 	rr c		;5fac
 	ex af,af'			;5fae

@@ -211,7 +211,7 @@ L 0x5352 divide_hl_entre_bc  La division con resta y restauracion del juego: ent
 L 0x5383 coseno_de_la_fuerza  Lee la tabla de 0x539C con el indice saturado a 0x40, para el coseno, y con 0x40 menos el indice para el seno
 L 0x5482 convierte_pendiente_en_vector  Con la pendiente (0xE1A3/0xE1A4) lee las cuatro tablas de 0x54E6: deja las componentes en 0xE1A5/0xE1A6 y el angulo del tiro en 0xE1A1, con los reflejos de 0xE1A2
 L 0x5766 carga_los_tiles_del_rotulo_grande  Copia 0x5788 a los patrones 0x2600: el apostrofe blanco y las letras verdes del BILLIARDS
-L 0x5A3A ensena_el_rate  El cartel del multiplicador de la apuesta
+L 0x5A3A devuelve_las_bolas_a_la_mesa  El castigo por embocar la blanca, y por eso solo lo llama 0x44DD cuando 0xE1AD esta levantado: TODAS las bolas que habian caido en esa tacada vuelven al pano. Las borra de la lista de bolas cobradas de arriba, y a cada una le busca sitio con 0x5A99 antes de devolverle el +0 a 0xFF; la blanca vuelve a su Y=0x70 X=0x40 de siempre. Como no pasa por el recuento, esas bolas no se cobran.
 L 0x5BC4 pide_un_sonido  Encola el numero A si su canal esta libre o suena algo menos prioritario: canal de 0xE024 para numeros bajos, 0xE012 para 0x87-0x89, y el tercero para el resto; el puntero sale de la tabla de 0x5D1C
 L 0x5C0E toca_el_sonido  El paso del driver en cada interrupcion: tres canales de 9 bytes desde 0xE010, con 0xFD para los parametros, 0xFE para repetir y 0xFF de fin
 L 0x5EB3 modulo_de_la_mesa  El otro punto con despachador del juego: salta por la tabla de 0x5EB9 con el indice de 0xE1F0
@@ -393,7 +393,7 @@ C 0x44cc nada que decidir, sigue la tacada
 C 0x44cd estado 15: mesa completada
 C 0x44d3 0xE024 es el canal de sonido de mas peso
 C 0x44d6 el 5 es el golpe de bola: hasta que no acabe no se decide nada
-C 0x44d9 0xE1AD: hay multiplicador de apuesta pendiente
+C 0x44d9 0xE1AD: la blanca cayo en una tronera
 C 0x44e2 0xE1B6 a uno: la proxima llamada a coloca_las_bolas NO recolocara
 C 0x44e6 la fisica, parada
 C 0x44ec quedan bolas de reserva?
@@ -775,3 +775,690 @@ C 0x5379 el primer impar es el 1, y el acarreo lo pone
 C 0x537a los impares se restan de dos en dos: 2k+1 = k + (k+1)
 C 0x537c se paso: BC es la raiz
 C 0x5380 el impar siguiente
+# --- Tanda 6: mover, rebotar y chocar (0x4E6B-0x51FE) ---
+
+L 0x4E6B mueve_una_bola  Un paso de una bola: le suma la velocidad a la posicion -las dos de 16 bits, con el byte bajo haciendo de fraccion-, mira si se ha salido de las bandas y, si se ha salido por donde hay tronera, se va a la rutina que la emboca; si no, la rebota reflejandola contra la banda y le da la vuelta a la velocidad. La mesa va de X=0x14 a X=0xD8 y de Y=0x3E a Y=0xA1. Al terminar busca choques con las otras bolas (0x4F25).
+L 0x4F14 olvida_con_quien_choco  Pone a cero el +15 de la bola: el rebote en banda borra la marca del ultimo choque, para que el siguiente contacto con la misma bola vuelva a contar.
+L 0x4F19 niega_la_velocidad  Complemento a dos de la palabra que hay en HL-1/HL: la que le da la vuelta a una componente de la velocidad al rebotar.
+L 0x4F25 busca_choques  Recorre las siete bolas comparando con la que se acaba de mover: si las dos coordenadas se diferencian en menos de 12 pixeles hay contacto posible, y entonces lo confirma 0x4F63 con la distancia de verdad.
+L 0x4F63 resuelve_el_choque  Mide la distancia entre las dos bolas de verdad (los dos cuadrados sumados, comparados con 0x9000, que a esta escala son 12 pixeles) y, si se tocan, reparte el movimiento. Si las dos ruedan, se intercambian velocidades (0x5192); si una estaba parada, la que llega le cede la parte de su energia que cae sobre la linea que une los dos centros -de ahi el coseno- y se queda con el resto.
+L 0x517B resta_coordenadas  La resta de 16 bits entre la misma coordenada de dos bolas, hecha en el juego alterno de registros para no gastar los de fuera. Devuelve por HL, PERO deja el juego alterno puesto: el `exx` de 0x4FFC es lo que lo devuelve a su sitio.
+L 0x5192 intercambia_las_velocidades  El choque entre dos bolas que se mueven las dos: intercambia el +1 y el +2 (energia y angulo), el +7 al +10 (las dos velocidades) y el +13 y el +14. Es el choque frontal entre masas iguales, resuelto sin una sola multiplicacion.
+L 0x51BD niega_hl  Complemento a dos de HL.
+L 0x51C5 deshace_el_paso  Le resta a la posicion de la bola (+3 y +5, las dos de 16 bits) su propia velocidad: retrocede el paso que acaba de dar, para que las dos bolas que han chocado no se queden encajadas una dentro de la otra.
+L 0x51E5 marca_el_par_que_choco  Cada una de las dos bolas se queda en su +15 con la base de la otra mas 0x10, que le sirve de nombre. Mientras las dos se apunten mutuamente, 0x4FC5 no vuelve a resolver el mismo contacto.
+
+C 0x4e6b IX es la base del registro de esta bola
+C 0x4e6e al +3: el byte bajo de la Y
+C 0x4e71 DE recorre la posicion
+C 0x4e73 y HL la velocidad, en el +7
+C 0x4e77 la posicion es de 16 bits y el byte bajo es la fraccion de pixel
+C 0x4e7d el acarreo sube al byte entero, que es el que ve el sprite
+C 0x4e82 y lo mismo con la X
+C 0x4e89 movida, a ver si ha chocado con alguna
+C 0x4e91 DE al +6: la X entera
+C 0x4e95 y HL al +10
+C 0x4e9b la banda izquierda esta en X=0x14
+C 0x4e9d y hay 0xC5 pixeles hasta la derecha
+C 0x4e9f dentro de la mesa a lo ancho: pasa a mirar la Y
+C 0x4ea1 se ha salido; DE al +4 para ver por donde
+C 0x4ea6 por encima de la banda de arriba de la mesa
+C 0x4ea8 esa es la tronera de una esquina de arriba
+C 0x4eab o por debajo de la de abajo
+C 0x4ead y la de una esquina de abajo
+C 0x4eb3 cuanto se ha pasado por la derecha
+C 0x4eb7 o, si fue por la izquierda, cuanto por alli
+C 0x4eb9 el doble: lo que hay que devolverla para reflejarla
+C 0x4eba justo encima de la banda, se la empuja un pixel
+C 0x4ebf la X se refleja contra la banda
+C 0x4ec1 y la velocidad cambia de sentido
+C 0x4ec6 el rebote cuenta como choque nuevo
+C 0x4ece HL al +8 y DE al +4: ahora la Y
+C 0x4ed4 la banda de arriba esta en Y=0x3E
+C 0x4ed6 y hay 0x64 pixeles hasta la de abajo
+C 0x4ed8 dentro: no hay nada que hacer
+C 0x4ede pegada a la banda izquierda: tronera de esquina
+C 0x4ee3 o a la derecha
+C 0x4ee8 y el centro de la banda
+C 0x4eec la tronera del medio: la mesa tiene SEIS
+C 0x4ef2 se salio por abajo
+C 0x4ef5 o por arriba
+C 0x4ef7 el doble de lo que se paso
+C 0x4efd la Y, reflejada
+C 0x4eff y la velocidad Y del reves
+C 0x4f05 la direccion ha cambiado: hay que rehacer pendiente y angulo
+C 0x4f08 0xE1A1, el angulo recien calculado
+C 0x4f10 al +2 de la bola
+C 0x4f11 y a ver si el rebote la ha metido encima de otra
+C 0x4f19 el byte alto
+C 0x4f1d y el bajo
+C 0x4f20 complemento a dos: +1 tras invertir
+C 0x4f25 el +4 de la bola que se acaba de mover
+C 0x4f2c la Y de la primera bola
+C 0x4f2f su Y
+C 0x4f32 y su X
+C 0x4f35 comparando los punteros
+C 0x4f37 es ella misma: no choca consigo
+C 0x4f3c la diferencia de Y
+C 0x4f41 doce pixeles: el diametro de una bola
+C 0x4f43 demasiado lejos en Y, ni se mira la X
+C 0x4f46 y la diferencia de X
+C 0x4f52 cerca en las dos: ahora la distancia de verdad
+C 0x4f58 DE vuelve al +4
+C 0x4f5a la bola siguiente
+C 0x4f5e hasta la septima
+C 0x4f63 E, al principio del registro de la otra bola
+C 0x4f67 0xE19C guarda con quien se esta chocando
+C 0x4f6e la Y de las dos, en 16 bits
+C 0x4f7c por dieciseis, para que el cuadrado no se quede sin precision
+C 0x4f80 el signo da igual para elevar al cuadrado
+C 0x4f83 el byte alto al cuadrado
+C 0x4f88 y lo mismo con la X
+C 0x4fa2 la suma de los dos cuadrados
+C 0x4fa4 0x9000 a esta escala son doce pixeles al cuadrado
+C 0x4fa9 no se llegan a tocar
+C 0x4fb2 la base de cada bola mas 0x10 le sirve de nombre
+C 0x4fb9 el +15 de esta
+C 0x4fbd y el +15 de la otra
+C 0x4fc2 esta no viene de chocar con nadie
+C 0x4fc5 se acuerda de la otra?
+C 0x4fcd y la otra de esta: entonces es el mismo contacto de antes y no se repite
+C 0x4fd0 contacto nuevo: que cada una se acuerde de la otra
+C 0x4fd3 sonido 3: el chasquido de las bolas
+C 0x4fd8 y se retrocede el paso, que estan encajadas
+C 0x4fdf el +1 de la otra
+C 0x4fe2 la otra tambien rueda: se cambian las velocidades y listo
+C 0x4fe5 estaba parada: hay que repartir
+C 0x4feb DE al +5 de la otra y HL al +6 de esta
+C 0x4ff6 la diferencia de X entre las dos
+C 0x4ff9 puesta donde 0x5430 espera una velocidad X
+C 0x4ffc y devuelve el juego de registros a su sitio
+C 0x4ffd la diferencia de Y
+C 0x5003 0xE18F hace de bola falsa: su +7 y su +9 son las dos diferencias
+C 0x5006 asi la misma rutina saca el angulo de la LINEA DE CENTROS
+C 0x5009 el angulo con el que venia la bola
+C 0x500f cuanto se desvia el golpe de la linea de centros
+C 0x5015 saturado a 0x3C: casi un angulo recto
+C 0x501b la tabla devuelve el coseno en A y el seno en C
+C 0x5023 la energia de la que llega
+C 0x5027 por el seno del desvio
+C 0x502b la parte que se lleva la golpeada
+C 0x502e y se la queda
+C 0x5036 y por el coseno
+C 0x5039 la parte que conserva la que golpea
+C 0x503c la componente Y de la linea de centros
+C 0x5044 por la energia cedida
+C 0x5048 tres desplazamientos con A recogiendo lo que se sale
+C 0x504e el resultado es el producto dividido entre 32
+C 0x5053 el bit 0 de 0xE1A2: la Y iba hacia arriba
+C 0x5057 la velocidad Y de la golpeada
+C 0x5071 y el bit 1 para la X
+C 0x5079 las dos componentes al registro de la otra bola
+C 0x507d su +10
+C 0x508c el angulo de la linea de centros
+C 0x508f es el angulo con el que sale la golpeada
+C 0x5096 las componentes escaladas a 24/256
+C 0x517b el byte alto de una
+C 0x5180 y el bajo
+C 0x5185 los mismos dos de la otra
+C 0x518e y la resta, en el juego alterno
+C 0x5192 la otra bola
+C 0x5195 y esta
+C 0x519b el +1 y el +2: energia y angulo
+C 0x51a0 al +7
+C 0x51a8 las cuatro componentes de velocidad
+C 0x51b1 y el +13 con el +14
+C 0x51b3 el intercambio byte a byte
+C 0x51c5 DE a la posicion y HL a la velocidad
+C 0x51d3 restarla es volver a donde estaba antes del paso
+C 0x51ee el +15 de esta
+C 0x51f2 y el +15 de la otra
+C 0x51f7 cada una guarda el nombre de la otra
+# --- Tanda 7: el rebote del que golpea, apuntar y los dos indicadores ---
+
+L 0x5104 guarda_la_velocidad_del_golpeador  Escribe en el +7 al +10 de la bola que ha golpeado las dos componentes que quedaron en 0xE1A8 y 0xE1AA, y rehace su pendiente, su angulo (+2) y las dos componentes escaladas del +13 y el +14.
+L 0x513C signos_con_el_angulo_bajo_0x40  Una de las cuatro ramas que deciden hacia que lado sale la bola que golpea. Compara el angulo de la linea de centros con el de la bola, los dos girados 0x60 para que la comparacion no cruce el cero, y niega una componente, la otra o ninguna.
+L 0x5156 signos_entre_0x40_y_0x80  La rama del segundo cuadrante: con el mismo acarreo niega las dos componentes o ninguna.
+L 0x5168 signos_entre_0x80_y_0xC0  La rama del tercer cuadrante: niega una componente y deja la otra, al reves que 0x513C.
+L 0x51FF paso_de_la_partida  El paso que corre mientras la mesa esta viva, llamado desde el refresco de sprites. Si hay un tiro en marcha le cede el turno a la fisica; si hay recuento de puntos pendiente, a la animacion del multiplicador; y si no, es el turno del jugador: cada 64 cuadros mueve la barra de SPEED, mueve la mira con las teclas y, con el boton, dispara.
+L 0x527C mueve_la_mira  Mueve el punto al que se apunta (0xE174 la Y, 0xE176 la X) con las cuatro direcciones. Solo se mueve en UN eje por llamada, el que diga el bit 0 de 0xE1F9, y ese bit se conmuta al llegar a los topes de ese eje: X entre 0x0E y 0xE1, Y entre 0x36 y 0xA9. Con esas dos reglas, las posiciones que la mira puede alcanzar son el PERIMETRO de ese rectangulo, que rodea a la mesa entera.
+L 0x52E5 pinta_los_intentos  El rotulo REST de la fila 2 columna 24 y, detras, un rombo (tile 0x5E) por cada intento que le queda a esta bola (0xE053), hasta cuatro, rellenando de huecos lo que sobra.
+L 0x5314 pinta_la_barra_de_fuerza  El rotulo SPEED de la fila 6 columna 4 y, detras, la barra: 0xE1A0 tiles 0x97 y el resto en blanco hasta cuatro. Y de paso ADELANTA la propia barra, que cicla sola 1, 2, 3, 1, 2, 3... El jugador no la ajusta: la llamada de 0x521D entra una vez cada 64 cuadros y hay que disparar cuando la barra este donde interesa.
+
+C 0x50ba el tercer desplazamiento
+C 0x50bd otra vez el producto entre 32
+C 0x50be la componente X de la que golpea sale de la Y de la linea de centros...
+C 0x50c6 ...y la Y de la X: cambiarlas de sitio es girar el vector un angulo recto
+C 0x50d2 porque la que golpea sale por la PERPENDICULAR a la linea de centros
+C 0x50d5 el angulo de la linea de centros
+C 0x50d8 y el que traia la bola
+C 0x50db 0x40 es un cuarto de vuelta
+C 0x50df la mitad
+C 0x50e3 y tres cuartos
+C 0x50e8 el cuarto cuadrante: los dos angulos se giran 0x60 para que la comparacion no cruce el cero
+C 0x50f0 quien va por delante de quien decide el lado
+C 0x50f4 y con eso se le da la vuelta a las dos componentes, o a ninguna
+C 0x5104 el +7 de la bola que ha golpeado
+C 0x510b las dos componentes recien calculadas
+C 0x5113 su velocidad Y
+C 0x5117 y su velocidad X
+C 0x511a con la velocidad nueva, angulo nuevo
+C 0x5129 al +2
+C 0x512c y las componentes escaladas al +13 y el +14
+C 0x513c primer cuadrante: el mismo giro de 0x60
+C 0x5144 y aqui una componente se niega y la otra no
+C 0x5156 segundo cuadrante: sin girar nada
+C 0x515a las dos a la vez, o ninguna
+C 0x5168 tercer cuadrante
+C 0x516c una si y la otra no, al reves que en el primero
+C 0x51ff los rotulos que se repintan siempre
+C 0x5205 0xE19F: hay un tiro rodando
+C 0x5209 entonces manda la fisica y el jugador no toca nada
+C 0x520c 0xE1AF: queda recuento de puntos
+C 0x5210 y entonces manda la animacion del multiplicador
+C 0x5215 0xE17C, a 0x0F mientras se apunta
+C 0x521b uno de cada 64 cuadros
+C 0x521d y ahi es donde la barra de fuerza avanza un paso
+C 0x5220 las teclas del cuadro anterior
+C 0x5223 invertidas
+C 0x5225 contra las de ahora
+C 0x5229 el flanco: las que se acaban de pulsar
+C 0x522a el bit 4, el boton de tiro
+C 0x522c y se dispara
+C 0x522f el juego alterno, que BC lleva las teclas
+C 0x5230 0xE202: el reloj de abandono
+C 0x5234 con cualquier tecla vuelve a cero
+C 0x5236 y sin ninguna, solo corre un cuadro de cada 256
+C 0x523d 256 pasadas de 256 cuadros: mas de un cuarto de hora sin tocar nada
+C 0x5242 y la tacada se da por perdida
+C 0x5248 donde esta la mira ahora
+C 0x5251 el cartel del multiplicador
+C 0x5254 y la mira se mueve con las teclas
+C 0x5257 donde ha quedado
+C 0x5261 se ha movido?
+C 0x5268 y el canal esta libre?
+C 0x526b sonido 1: el tic de mover la mira
+C 0x526e vuelta al juego principal, donde C lleva las teclas
+C 0x5273 se esta pulsando algo?
+C 0x5276 nada pulsado: 0xE1AA vuelve a 0x10
+C 0x5279 y pulsando va bajando, sin pasar de cero
+C 0x52e5 fila 2, columna 24
+C 0x52e8 los cuatro tiles del REST
+C 0x52f1 los intentos que quedan
+C 0x52f5 y los huecos que sobran hasta cuatro
+C 0x52f9 fila 2, columna 28
+C 0x52ff quedan intentos por pintar?
+C 0x5303 0x5E: el rombo
+C 0x530b y lo que sobra, en blanco
+C 0x5310 hasta completar los cuatro huecos
+C 0x5314 fila 6, columna 4
+C 0x5317 los cinco tiles del SPEED
+C 0x5320 0xE1A0: la fuerza
+C 0x5324 sube una
+C 0x5325 y al llegar a cuatro
+C 0x5329 vuelve a empezar por uno: la barra va y viene sola
+C 0x532c lo que hay que pintar
+C 0x532d y lo que hay que borrar
+C 0x5331 fila 6, columna 9
+C 0x5334 0x97: el trozo de barra
+C 0x533c y el resto, en blanco
+C 0x533f hasta los cuatro huecos
+# --- Tanda 8: el rozamiento y la trigonometria (0x5383-0x54E5) ---
+
+L 0x5383 coseno_de_la_fuerza  Lee la tabla de 0x539C dos veces: con el indice saturado a 0x40 devuelve el coseno en C y, con 0x40 menos el indice, el seno en A. Una sola tabla de cuarto de vuelta para las dos funciones.
+L 0x53DD frena_una_bola  El rozamiento del pano, una vez de cada ocho cuadros: le quita 3 a la energia de la bola (+1) sin bajar de cero, y a cada componente de la velocidad le suma el frenado que lleva guardado en el +13 y el +14, siempre con el signo contrario al del movimiento. Como esos dos bytes son las componentes del vector unidad escaladas a 24/256, la bola frena EN SU PROPIA LINEA y no se tuerce al pararse.
+L 0x5425 niega_bc  Complemento a dos de BC.
+L 0x542D rehace_el_angulo  Vuelve a sacar pendiente, componentes y angulo de la bola que apunta 0xE194, a partir de su velocidad: la llamada de despues de cada rebote y de cada choque.
+L 0x54E0 pendiente_con_la_x_mayor  La otra rama de 0x5430: cuando la componente X es la mayor, el dividendo es la Y y 0xE1A4 sale a 1, que es lo que luego cruza las dos tablas.
+
+C 0x5383 la tabla llega hasta un cuarto de vuelta
+C 0x5387 y de ahi no pasa
+C 0x538a el indice guardado
+C 0x5390 C se queda con el coseno
+C 0x5391 y el complemento del indice
+C 0x539a da el seno con la misma tabla
+C 0x53dd una vez de cada ocho cuadros
+C 0x53e3 la entrada sin esperar, la que usa el recuento
+C 0x53e6 el +1: la energia
+C 0x53e8 tres unidades menos por pasada
+C 0x53ec sin pasarse de cero
+C 0x53ee al +13
+C 0x53f3 BC: el frenado, ya repartido por componentes
+C 0x53fb y HL al +7
+C 0x53fe la velocidad Y
+C 0x5402 A guarda el +14 para la otra componente
+C 0x5405 la velocidad va hacia abajo?
+C 0x5408 si va hacia arriba, el frenado tira al reves
+C 0x540c y se le suma
+C 0x540e la velocidad Y, frenada
+C 0x5413 ahora la X
+C 0x5419 con el +14 que se habia guardado
+C 0x541a el mismo criterio de signo
+C 0x5421 y la X, frenada
+C 0x5425 el byte bajo
+C 0x5428 y el alto
+C 0x542b complemento a dos
+C 0x549d la tabla, indexada por la pendiente
+C 0x54a1 0xE1A5: la componente del eje mayor
+C 0x54a4 el eje que salio mayor
+C 0x54a5 y la tabla se cruza con la otra
+C 0x54b3 0xE1A6: la componente del eje menor
+C 0x54b7 la tabla de angulos, y su gemela restada de 0x40
+C 0x54c1 esa tabla solo tiene 64 entradas, asi que la pendiente se divide entre cuatro
+C 0x54c8 el angulo dentro del octante
+C 0x54c9 los dos espejos
+C 0x54d2 espejo en X: media vuelta
+C 0x54d4 la PARIDAD de los dos espejos
+C 0x54d6 con los dos puestos, o con ninguno, el angulo va tal cual
+C 0x54d9 con uno solo, del reves
+C 0x54dc 0xE1A1: el angulo, ya en la vuelta entera
+C 0x54e0 la componente mayor pasa a ser el dividendo
+C 0x54e3 y 0xE1A4 a uno: es la X la que manda
+# --- Tanda 9: las troneras y las bolas embocadas (0x5880-0x5A0C) ---
+
+L 0x5880 boca_de_la_banda_izquierda  Adonde va la bola que se sale por la banda izquierda a la altura de una tronera. Aqui no se decide con la X y la Y por separado, sino con su SUMA y su RESTA: las boquillas estan achaflanadas a 45 grados, y una diagonal de 45 grados es justo el sitio donde X+Y o X-Y valen lo mismo. Segun el tramo, la bola entra (0x5980) o rebota en el chaflan (0x5923 y 0x593B).
+L 0x589A boca_de_la_banda_derecha  La simetrica de 0x5880 para la banda derecha, con los mismos tramos de suma y resta corridos al otro lado.
+L 0x58B3 boca_de_la_banda_de_arriba  La banda de arriba: si la X no llega a 0x70 lo resuelve la esquina de la izquierda (0x5911), y si no, los chaflanes de este lado.
+L 0x58CD boquilla_de_la_tronera_central  Las dos troneras del centro, que no tienen chaflan sino dos paredes verticales. Si la bola se ha metido lo bastante (Y fuera de 0x2E-0xB1) entra; si no, y viene contra una de las dos paredes, se le da la vuelta a la velocidad X y sigue rodando dentro de la boquilla.
+L 0x5908 boca_de_la_banda_de_abajo  La banda de abajo: reparte entre la mitad de arriba (0x5886) y la de abajo (0x589F) segun la Y.
+L 0x5911 esquina_de_arriba_a_la_izquierda  El cuarto juego de tramos, el de la esquina que queda entre las dos bandas que ya se han mirado.
+L 0x5923 rebota_en_el_chaflan  Rebote contra una diagonal de 45 grados: intercambia las dos componentes de la velocidad, que es exactamente lo que hace un espejo puesto a 45 grados. Ni una multiplicacion.
+L 0x593B rebota_en_el_chaflan_contrario  La otra diagonal: intercambia las dos componentes Y ADEMAS les da la vuelta a las dos.
+L 0x5959 rehace_la_bola_tras_el_chaflan  Comun a los dos rebotes de chaflan: angulo nuevo en el +2 y frenado nuevo en el +13 y el +14.
+L 0x5980 emboca_la_bola  La bola entra en la tronera: pide el sonido 4 (y el 5 ademas si la que cae es la blanca), sube el multiplicador de 0xE1AE, la saca de la mesa poniendo su +0 y su +1 a cero y su Y a 0xE0 -fuera de la pantalla-, y la apunta en las dos listas: 0xE1D0, la de esta tacada, y 0xE1D7, la de las que ya se ven arriba. La blanca no se apunta en ninguna: solo levanta la bandera 0xE1AD.
+L 0x59C8 pinta_las_bolas_embocadas  Pinta la fila de bolas cobradas de 0xE1D7 en la fila 4 columna 19, cada una en un bloque de dos por dos tiles: el numero de tile sale del byte que la identifica dividido entre cuatro mas 0x98, y las cuatro casillas van con los tiles seguidos.
+
+C 0x5881 la mitad de arriba de la banda o la de abajo
+C 0x5887 la RESTA de las dos coordenadas: la diagonal de un chaflan
+C 0x588a por dentro del chaflan: la bola entra
+C 0x588e y la SUMA: la otra diagonal
+C 0x5891 rebote en el chaflan
+C 0x5896 y por el otro lado, tambien
+C 0x5899 entremedias esta la boca, y por ahi no se toca nada
+C 0x58cd la Y, contada desde arriba del todo
+C 0x58d0 0x84 pixeles de boquilla: mas alla, la bola ya esta dentro
+C 0x58d6 su velocidad X
+C 0x58dc la pared izquierda de la boquilla
+C 0x58e1 el byte alto de la velocidad X
+C 0x58e5 va hacia la derecha, o sea alejandose: no hay rebote
+C 0x58e8 la pared derecha
+C 0x58ea entre las dos, campo libre
+C 0x58eb el signo de la velocidad
+C 0x58ef va hacia la izquierda: tampoco choca
+C 0x58f0 contra la pared: la X del reves
+C 0x58f9 y angulo nuevo
+C 0x5902 el rebote tambien frena
+C 0x5905 y cuenta como choque nuevo
+C 0x5911 la suma de las dos
+C 0x5915 dentro: entra
+C 0x5919 y la resta
+C 0x5923 el +7 de la bola
+C 0x5930 la velocidad Y pasa a ser la X
+C 0x5933 y la X pasa a ser la Y
+C 0x593b la velocidad Y
+C 0x5941 y la X
+C 0x5947 las dos del reves
+C 0x594d y ademas cruzadas: el espejo de la otra diagonal
+C 0x595f el angulo nuevo
+C 0x5962 escrito DOS veces con el mismo valor: tres bytes que no hacen nada
+C 0x596b el frenado, otra vez repartido
+C 0x5980 0xE1AD: ya se habia embocado algo?
+C 0x5984 sonido 4: la bola cae
+C 0x5989 el byte bajo del puntero: a cero solo la blanca
+C 0x598d sonido 5: y ademas el aviso de que la que ha caido es la blanca
+C 0x5992 0xE1AE: cuantas seguidas llevan
+C 0x5996 el multiplicador se queda en cinco
+C 0x599f el +0: fuera de la mesa
+C 0x59a1 y el +1: parada
+C 0x59a5 la Y a 0xE0, que es fuera de la pantalla: el sprite deja de verse
+C 0x59a7 0xE1D7: las bolas cobradas, las que se ven arriba
+C 0x59aa y 0xE1D0: las de esta tacada, las que van a puntuar
+C 0x59ad busca el primer hueco de la lista
+C 0x59b7 la blanca no se cobra
+C 0x59bb solo levanta la bandera de bola perdida
+C 0x59bf apunta la bola en la lista de la tacada
+C 0x59c1 y busca hueco en la de arriba
+C 0x59c7 donde tambien se apunta
+C 0x59c8 fila 4, columna 19
+C 0x59cb la lista de bolas cobradas
+C 0x59d3 caben seis
+C 0x59d8 un cero cierra la lista
+C 0x59db el identificador entre cuatro
+C 0x59dd y da el primero de los cuatro tiles de esa bola
+C 0x59e5 la casilla de arriba a la izquierda
+C 0x59e8 dos instrucciones que no hacen nada: son el respiro que el VDP necesita entre dos escrituras
+C 0x59eb el tile de dos mas alla
+C 0x59ed arriba a la derecha, aprovechando el autoincremento
+C 0x59f1 la fila de abajo
+C 0x59fc abajo a la izquierda
+C 0x5a04 y abajo a la derecha
+C 0x5a07 sube una fila y avanza dos columnas: la bola siguiente
+# --- Tanda 10: devolver bolas y cobrar la tacada (0x5A10-0x5B84) ---
+
+L 0x5A10 borra_lo_que_sobra_de_la_fila  Apaga los bloques de dos por dos que quedan libres en la fila de bolas cobradas, con los mismos respiros para el VDP que usa la rutina que los pinta.
+L 0x5A8B prueba_el_hueco_siguiente  El sitio no valia: se corre ocho pixeles a la derecha y, si se sale por 0xC1, vuelve al margen izquierdo dos pixeles mas abajo. Y a probar otra vez.
+L 0x5A99 busca_hueco_en_la_mesa  Busca donde dejar una bola que vuelve al pano: recorre las otras seis y, con el mismo criterio de doce pixeles que usa el choque, acepta el sitio o pide el siguiente. Empieza en Y=0x70 X=0x90 y devuelve la posicion en BC.
+L 0x5AC4 animacion_del_recuento  El segundo despachador de la partida: las tres fases del cartel que va cobrando, una por una, las bolas embocadas en la tacada. El indice esta en 0xE1B0 y la tabla va detras del `call`.
+L 0x5AD3 recuento_arranca  Fase 0: pone el puntero de lectura al principio de la lista de bolas de esta tacada y pasa a la fase 1.
+L 0x5ADF recuento_cobra_una_bola  Fase 1: coge la siguiente bola de la lista, la puntua y ensena el cartel. Los puntos son el NUMERO de la bola por cien, doblado una vez por cada bola que se lleve embocada seguida: con el multiplicador a 5 son dieciseis veces. Cuando la lista se acaba, mira si la mesa se ha quedado limpia.
+L 0x5B73 recuento_borra_el_cartel  Fase 2: espera los 0x80 cuadros que le dejo la fase anterior y borra los trece tiles del cartel.
+
+C 0x5a10 el puerto del VDP
+C 0x5a14 y el tile en blanco
+C 0x5a16 la fila entera de un tiron
+C 0x5a1c el respiro que el VDP necesita
+C 0x5a20 la fila de abajo
+C 0x5a2e y de vuelta arriba, dos columnas mas alla
+C 0x5a34 el contador va en el juego alterno
+C 0x5a3a las bolas embocadas en esta tacada
+C 0x5a3d y las que se ven arriba
+C 0x5a40 la primera de la tacada
+C 0x5a43 se busca en la lista de arriba
+C 0x5a49 y desde ahi
+C 0x5a4b se borra el resto: todo lo de esta tacada deja de estar cobrado
+C 0x5a4f quedaba alguna?
+C 0x5a54 Y=0x70, X=0x90: por donde se empieza a buscar sitio
+C 0x5a57 el hueco sale en BC
+C 0x5a61 la bola, y se la saca de la lista
+C 0x5a64 el identificador ES el byte bajo de su registro
+C 0x5a68 el +0 a 0xFF: vuelve a la mesa
+C 0x5a6a al +4
+C 0x5a6d su Y
+C 0x5a70 y su X
+C 0x5a72 la siguiente de la lista
+C 0x5a77 y la blanca vuelve a Y=0x70, X=0x40
+C 0x5a7d tambien a la mesa
+C 0x5a87 y se olvida que se habia perdido
+C 0x5a8c ocho pixeles mas a la derecha
+C 0x5a8f y si se pasa del borde
+C 0x5a93 al margen, dos pixeles mas abajo
+C 0x5a99 la Y de la bola que se esta colocando
+C 0x5a9c contra la Y de la primera
+C 0x5aa0 menos contra si misma
+C 0x5aa6 la distancia en Y
+C 0x5aab doce pixeles, el mismo criterio que el choque
+C 0x5ab0 y la distancia en X
+C 0x5ab7 demasiado cerca: hay que probar otro sitio
+C 0x5abb la bola siguiente
+C 0x5abf las siete
+C 0x5ac4 0xE1B0: en que fase va el recuento
+C 0x5ac7 HL no lo usa el despachador: la tabla va detras del `call`
+C 0x5ad6 0xE1B2 recorre la lista
+C 0x5adb y a la fase 1
+C 0x5adf por donde iba
+C 0x5ae2 las bolas seguidas que lleva
+C 0x5ae7 la lista se ha acabado?
+C 0x5aea entonces no queda recuento pendiente
+C 0x5aed y a ver si la mesa se quedo limpia
+C 0x5af0 el identificador entre dieciseis: el NUMERO de la bola
+C 0x5af5 y su ASCII, que tambien es su tile
+C 0x5afb la siguiente, para la proxima vuelta
+C 0x5aff una vez menos que el multiplicador
+C 0x5b02 dobla
+C 0x5b03 sin salirse del BCD
+C 0x5b06 lo que vale esta bola, en centenas
+C 0x5b0a las unidades no cuentan: son n x 100
+C 0x5b0c y al marcador
+C 0x5b0f el numero de la bola
+C 0x5b12 fila 3, columna 10
+C 0x5b19 el resto del cartel
+C 0x5b22 el puerto del VDP, que sigue autoincrementando detras del cartel
+C 0x5b26 el multiplicador
+C 0x5b29 0x5B89, un byte antes de la tabla: el 0xB9 del rotulo hace de valor para el indice cero
+C 0x5b31 su digito de las decenas
+C 0x5b37 si es cero no se pinta: nada de un 01
+C 0x5b3e y el de las unidades
+C 0x5b44 0xB8: el signo de multiplicar
+C 0x5b46 hueco para el VDP
+C 0x5b49 y los puntos que se acaban de sumar
+C 0x5b61 los dos ceros del final
+C 0x5b66 otro respiro
+C 0x5b6d a la fase 2
+C 0x5b6f y 0x80 cuadros de cartel
+C 0x5b76 mientras dure la espera
+C 0x5b79 agotada, se vuelve a la fase 1 a por la bola siguiente
+C 0x5b7a los trece tiles del cartel
+# --- Tanda 11: el driver de sonido y el attract (0x5B90-0x5FB2) ---
+
+L 0x5B90 pinta_el_rate  El rotulo RATE de la fila 5 columna 4 y, detras, el multiplicador que se cobrara por la SIGUIENTE bola: aqui la tabla se indexa desde 0x5B8A, mientras que el cartel del recuento (0x5B29) la indexa desde 0x5B89, un byte antes, y por eso ensena el que se acaba de aplicar.
+L 0x5C05 repite_la_partitura  El 0xFE de una partitura: vuelve a pedir el mismo numero de sonido que hay en el +2 del canal, y con eso empieza otra vez desde el principio.
+L 0x5C2B paso_de_un_canal  Un cuadro de un canal: si el numero de sonido lleva el bit 7 es musica y pasa por la envolvente (0x5C82); si no, es un efecto y solo cuenta la duracion.
+L 0x5C32 lee_la_orden_siguiente  Coge el byte siguiente de la partitura: 0xFF calla el canal, 0xFE lo hace repetir, y cualquier otro es una nota.
+L 0x5C6D pon_volumen_y_duracion  Recarga el contador de la nota (+0), arma la cuenta de la envolvente (+8) y escribe el volumen. El registro de volumen sale de rotar C -que vale 1, 3 o 5- y sumarle 0x88: da 8, 9 y 10, que son justo los tres registros de volumen del PSG.
+L 0x5C7B calla_el_canal  El 0xFF de fin: borra el numero de sonido, con lo que el canal queda libre, y pone el volumen a cero.
+L 0x5C82 decae_el_volumen  La envolvente por programa del modo musica: mientras dura la nota, va bajando el volumen de uno en uno a un ritmo que sale de comparar los dos contadores.
+L 0x5CAB nota_del_modo_musica  Una orden del modo musica: el 0xFD trae parametros -la octava en los tres bits de abajo y el volumen en los de arriba-, y una nota normal trae la duracion en el nibble alto y el semitono en el bajo, con el 12 haciendo de silencio.
+L 0x5CFA escribe_el_tono  Escribe HL en el par de registros de tono del canal, el alto primero y el bajo despues.
+L 0x5EEC attract_apunta_y_tira  La maquina jugando: busca la primera bola de color que siga en la mesa, mide el angulo que hay de la blanca a esa bola y el que hay de la blanca a la mira, y si no coinciden mueve la mira. Cuando coinciden -y solo con la barra de fuerza en 3- ESCRIBE EL BOTON DE TIRO en 0xE008/0xE009, las mismas variables donde deja las teclas el jugador. No hay codigo de juego aparte: el attract se pilota a si mismo por la puerta del teclado, y usa la misma trigonometria que la partida.
+L 0x5F6D angulo_desde_la_blanca  El angulo que hay de la bola blanca al punto que trae DE: resta las dos coordenadas de 16 bits, las divide entre ocho para que quepan, las deja donde 0x5430 espera una velocidad -0xE1EA hace de bola falsa- y devuelve el angulo en A.
+L 0x5FA4 divide_abc_entre_ocho  Tres desplazamientos aritmeticos del numero de 24 bits A:BC, conservando el signo.
+
+C 0x5b96 fila 5, columna 4
+C 0x5b9f la tabla desde su primer valor, no desde el byte de antes
+C 0x5ba7 la decena del multiplicador
+C 0x5bad y si es cero no se pinta
+C 0x5bb6 la unidad
+C 0x5bc7 el bit 6 de 0xE002: solo hay sonido con partida de verdad
+C 0x5bc9 en el attract no suena nada
+C 0x5bca la entrada que se salta esa comprobacion: la usan el arranque y el choque de bolas
+C 0x5bcc de entrada, dos canales desde el primero
+C 0x5bcf por debajo de 0x87 es un efecto
+C 0x5bd3 de 0x87 a 0x89, dos canales
+C 0x5bd7 y de 0x8A en adelante, los TRES
+C 0x5bda un solo canal
+C 0x5bdb y el tercero, 0xE022
+C 0x5bde el numero que suena ahora en ese canal
+C 0x5bdf lo que suena pesa mas: el nuevo se pierde
+C 0x5be2 los seis bits de abajo son el numero de partitura
+C 0x5be4 dos bytes por puntero
+C 0x5be5 0x5D1A, dos antes de la tabla: el numero 1 es el primero
+C 0x5beb del +2 al +0 del canal
+C 0x5bed el contador, a uno: la primera nota entra en el cuadro siguiente
+C 0x5bf4 el numero de sonido, que tambien es su prioridad
+C 0x5bf7 y el puntero a la partitura
+C 0x5bfe el canal siguiente, nueve bytes mas alla
+C 0x5c01 con el puntero siguiente de la tabla: un sonido de tres canales se lleva tres seguidos
+C 0x5c0e C es el registro alto del par de tono del canal A
+C 0x5c10 el primer canal
+C 0x5c15 los tres
+C 0x5c17 de nueve en nueve bytes
+C 0x5c1b el numero de sonido: cero es canal libre
+C 0x5c22 los registros de tono van de dos en dos
+C 0x5c25 y el canal, de nueve en nueve
+C 0x5c2b el bit 7 del numero separa la musica de los efectos
+C 0x5c2e la nota en curso
+C 0x5c31 mientras dure, nada que hacer
+C 0x5c32 el puntero a la partitura
+C 0x5c39 0xFE: volver al principio
+C 0x5c3d 0xFF: se acabo
+C 0x5c3f y el modo musica va por otro lado
+C 0x5c46 el nibble alto de la orden
+C 0x5c48 0x20: la orden trae duracion nueva
+C 0x5c4f que se guarda en el +1
+C 0x5c53 el nibble alto es el volumen
+C 0x5c57 y el bajo, el byte alto del tono
+C 0x5c5a con el byte que sigue completa el divisor
+C 0x5c5c el puntero, ya adelantado
+C 0x5c63 y el tono al PSG
+C 0x5c67 el volumen baja a los cuatro bits de abajo
+C 0x5c7b el canal queda libre
+C 0x5c7f y a volumen cero
+C 0x5c82 la nota en curso
+C 0x5c85 agotada: a por la siguiente
+C 0x5c87 el contador de la envolvente
+C 0x5c8d cuando los dos coinciden toca bajar el volumen
+C 0x5c92 al final de la nota, mas deprisa
+C 0x5c97 y si no, se adelanta otra unidad
+C 0x5c9a el volumen de ahora
+C 0x5c9e a cero no se baja mas
+C 0x5ca4 C vale 1, 3 o 5 y la rotacion lo deja en 0x80, 0x81 o 0x82
+C 0x5ca5 que mas 0x88 dan los registros 8, 9 y 10: los tres volumenes
+C 0x5cab 0xFD: la orden trae parametros
+C 0x5cb1 los tres bits de abajo: cuantas octavas se baja
+C 0x5cba y los de arriba, el volumen de ataque
+C 0x5cbf el nibble bajo: el semitono
+C 0x5cc2 y el alto, la duracion
+C 0x5cce la tabla de las ocho duraciones
+C 0x5cd5 al +1 del canal
+C 0x5cd9 el semitono 12 es un silencio
+C 0x5ce0 y en los demas el volumen vuelve al de ataque
+C 0x5ce7 la tabla de semitonos
+C 0x5ced el divisor de la octava mas aguda
+C 0x5cf0 y cuantas octavas hay que bajar
+C 0x5cf7 doblar el divisor es bajar una octava
+C 0x5cfc el byte alto del tono
+C 0x5cff y el registro de al lado, el bajo
+C 0x5ec1 0xE002 a cero: sin bit 6, ni hay puntuacion ni suena nada
+C 0x5ec5 el mismo arranque de partida que usa el estado 8
+C 0x5eca la cortina, otra vez desde el principio
+C 0x5ece y lo que hace el estado 9 sin la parte del marcador
+C 0x5ed8 y lo que hace el estado 10
+C 0x5edb 0x21: la direccion de arranque de la mira, con dos bits puestos para que las rotaciones ciclen
+C 0x5ee2 al submodo siguiente
+C 0x5ee6 y el estado global vuelve al 7, que es quien llama aqui: el bucle del attract
+C 0x5eec hay un tiro rodando?
+C 0x5ef2 desde la bola siguiente a la blanca
+C 0x5ef5 de dieciseis en dieciseis
+C 0x5efa la primera que siga en la mesa
+C 0x5f00 su posicion
+C 0x5f03 el angulo de la blanca a esa bola
+C 0x5f07 y el de la blanca a la mira
+C 0x5f0f cuanto se diferencian
+C 0x5f11 con uno de margen, ya se puede tirar
+C 0x5f15 las variables donde el jugador deja sus teclas
+C 0x5f18 todavia no apunta: hay que mover la mira
+C 0x5f1a la barra de fuerza
+C 0x5f1d la maquina solo tira con la barra al maximo
+C 0x5f21 sin tecla en el cuadro anterior...
+C 0x5f22 ...y el boton de tiro en este: el flanco que 0x5229 espera
+C 0x5f26 y a partir de aqui, la partida normal
+C 0x5f2c estado 15: mesa completada
+C 0x5f30 o la tacada se ha terminado
+C 0x5f3a 0xE00B a uno: la vuelta al titulo ya no arranca otro attract
+C 0x5f3f fuera del flanco no se pulsa nada
+C 0x5f44 la X de la mira
+C 0x5f47 pegada al tope derecho?
+C 0x5f4c o al izquierdo
+C 0x5f54 la Y contra el tope de arriba
+C 0x5f59 y contra el de abajo
+C 0x5f5e ninguno de los cuatro: se sigue en la misma direccion
+C 0x5f64 en una esquina, dos rotaciones cambian de direccion
+C 0x5f69 los cuatro bits de abajo son las cuatro direcciones
+C 0x5f6d 0xE103: la posicion de la blanca en 16 bits
+C 0x5f71 la resta, byte a byte
+C 0x5f78 y el signo se extiende a un tercer byte
+C 0x5f7f entre ocho, que si no se sale de rango
+C 0x5f82 donde 0x5430 espera la velocidad Y
+C 0x5f96 y la X
+C 0x5f9a 0xE1EA hace de bola: su +7 y su +9 son las dos diferencias
+C 0x5fa0 y el angulo sale por A
+C 0x5fa5 tres desplazamientos
+C 0x5fa8 el aritmetico conserva el signo
+# --- Tanda 12: cerrar las rutinas que quedaban por debajo del liston ---
+
+L 0x4708 cortina_recorta_por_el_marcador  Del estado 12 en adelante la cortina no borra la pantalla entera: empieza tres filas mas abajo y solo se lleva 21, para dejar el marcador de arriba en su sitio.
+L 0x46D0 cuerpo_de_copia_a_vram  El bucle de copia, sin abrir la VRAM: lo reaprovecha el interprete del formato B para soltar sus tramos de literales.
+L 0x5449 espejo_de_la_x  La segunda mitad de 0x5430: si la velocidad X va hacia la izquierda, la niega y lo apunta en el bit 1 de 0xE1A2.
+L 0x5454 reduce_las_dos_componentes  Divide las dos velocidades entre 32 a base de rotarlas cinco veces, y compara: la mayor sera el divisor y la menor el dividendo, que es lo que mantiene la pendiente dentro de un octante.
+
+C 0x46eb 0xE00A a uno: mientras corre la cortina, los sprites no se refrescan
+C 0x46f0 la tabla de nombres
+C 0x46f5 24 filas de alto
+C 0x46f7 el bit 6 de 0xE004 hace de conmutador entre las dos mitades de cada paso
+C 0x46fb la columna 31 menos el contador: la cortina viene tambien desde la derecha
+C 0x46ff y deja marcado que la proxima vez toca la otra
+C 0x4703 la segunda mitad del paso
+C 0x4705 y aqui es donde el contador baja de verdad, un cuadro de cada dos
+C 0x4706 pasado de cero: la cortina ha terminado
+C 0x4707 la columna que toca por la izquierda
+C 0x470b el estado 12 es el primero con marcador que respetar
+C 0x470f 0x60: tres filas mas abajo
+C 0x4713 y solo 21 filas
+C 0x4715 el tile en blanco
+C 0x4719 32 bytes: la fila de debajo
+C 0x471e la columna entera
+C 0x4720 y de paso corta la lista de sprites
+C 0x46d0 el byte
+C 0x46d2 al puerto de datos, que el VDP ya va autoincrementando
+C 0x46d5 el origen avanza
+C 0x46d7 y la cuenta baja
+C 0x46e0 siempre el mismo byte
+C 0x46e5 hasta agotar la cuenta
+C 0x4879 el tile del "1" o el "2"
+C 0x487a arriba, en la fila del jugador
+C 0x487e la "P"
+C 0x4883 y el separador
+C 0x4d24 el mismo tratamiento para dX
+C 0x4d25 el byte alto, que es dividir despues con ocho bits de fraccion
+C 0x4d28 el byte bajo de la distancia
+C 0x4d29 dX * 256 / distancia
+C 0x4d2d habia que darle la vuelta?
+C 0x4d32 pues complemento a dos
+C 0x51bd el byte bajo
+C 0x51c0 y el alto
+C 0x51c3 mas uno: complemento a dos
+C 0x51d5 el byte alto de la Y
+C 0x51db al +5, la X
+C 0x51e1 y su byte alto
+C 0x527c 0xE1F7: cuanto se mueve la mira en cada eje
+C 0x5280 donde esta
+C 0x5283 la X en H y la Y en L
+C 0x5287 las teclas de este cuadro
+C 0x528a sin ninguna, la mira se queda quieta
+C 0x528f el bit 0: arriba
+C 0x5292 la Y, un pixel menos
+C 0x52a3 el movimiento, guardado para la proxima
+C 0x52a8 la X con lo suyo
+C 0x52ab y la Y con lo suyo
+C 0x52ad 0xE1F9: en que eje se puede mover ahora
+C 0x52b0 el bit 0 reparte entre las bandas de arriba y abajo y las de los lados
+C 0x52b2 el eje vertical
+C 0x52b5 pegada al tope izquierdo?
+C 0x52b9 entonces conmuta el eje: la mira dobla la esquina
+C 0x52ba y el mismo control contra el tope derecho
+C 0x52bc pasado el tope: no se mueve
+C 0x52be justo en el tope
+C 0x52c3 la X, ya movida
+C 0x52c8 el tope de arriba
+C 0x52cd y el de abajo, 0x74 pixeles mas alla
+C 0x52d6 la Y, ya movida
+C 0x52da en el tope de todo, cambia de eje y se queda
+C 0x5430 al +7 del registro que llegue en HL
+C 0x5435 la velocidad Y
+C 0x5439 y la X
+C 0x543c A ira juntando los dos espejos
+C 0x543d la Y va hacia arriba?
+C 0x5441 entonces se le da la vuelta
+C 0x5448 y queda apuntado en el bit 0
+C 0x5449 y lo mismo con la X
+C 0x544e negada por BC, que es donde esta
+C 0x5452 en el bit 1
+C 0x5454 los dos espejos, guardados
+C 0x5457 cinco rotaciones: la velocidad entre 32
+C 0x546b y las mismas cinco para la X, que acaba en A
+C 0x547b cual de las dos es la mayor
+C 0x547c manda la X: se cambian los papeles
+C 0x547e la Y arriba, la X abajo
+C 0x5480 y con el byte bajo a cero, la division sale con ocho bits de fraccion
+C 0x5766 0x2600: los patrones del tile 0xC0 en adelante
+C 0x576c 248 bytes: treinta y un tiles
+C 0x5772 el color del 0xC0
+C 0x5778 blanco: es el apostrofe de KONAMI'S
+C 0x577d y los treinta que siguen
+C 0x5783 verde: las letras grandes del BILLIARDS
+C 0x589f la suma de las dos coordenadas
+C 0x58a3 dentro: la bola entra
+C 0x58a7 y la resta
+C 0x58aa rebote en el chaflan
+C 0x58af y en el otro
+C 0x58b2 en medio esta la boca
+C 0x58b9 la resta de las dos
+C 0x58bd por dentro del chaflan: entra
+C 0x58c1 y la suma
+C 0x58c4 chaflan
+C 0x58c9 el otro chaflan
+C 0x58cc y entremedias, la boca
+C 0x5c6d el volumen que toca
+C 0x5c6e la duracion de la nota
+C 0x5c71 al contador que la va gastando
+C 0x5c74 tres mas para la envolvente
