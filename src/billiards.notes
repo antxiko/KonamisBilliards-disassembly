@@ -53,7 +53,7 @@ D 0x42D1 0x42E0 rotulo_copyright  Lista formato A: "(c)KONAMI 1984" en la fila 8
 D 0x42E0 0x42EE rotulo_play_select  Lista formato A: "PLAY SELECT" en la fila 13 (0x4416).
 D 0x42EE 0x42F9 rotulo_1_player  Lista formato A: "1 PLAYER" en la fila 16 (0x441C); el menu la parpadea borrandola y pintandola (0x4451 con las dos entradas del interprete).
 D 0x42F9 0x4305 rotulo_2_players  Lista formato A: "2 PLAYERS" en la fila 18 (0x4422 y 0x4456).
-D 0x4305 0x431B rotulo_game_over_y_player  Lista formato A con dos entradas: entera desde 0x4305 pinta "GAME OVER" en la fila 11 y "PLAYER" en la 9 (0x4503); entrando por 0x4314, solo el "PLAYER" de la fila 9 (0x448B, el aviso PLAYER 1/2 al cambiar el turno).
+D 0x4305 0x431B rotulo_game_over_y_player  Lista formato A de dos entradas que pinta 0x4503 al acabarse las bolas: "GAME OVER" en la fila 11 columna 11 (destino 0x396B, con dos tiles 0 de separacion en medio) y, tras el 0xFE, "PLAYER" en la fila 9 columna 12 (destino 0x392C). El aviso de turno del estado 9 NO usa el interprete: 0x448B copia a pelo los seis tiles que hay en 0x4314 -el "PLAYER" ya sin su cabecera de destino- a la VRAM 0x386C, que es la fila 3 columna 12, y le pega el digito del jugador en la columna 19.
 D 0x431B 0x432C raya_y_software  Lista FORMATO B del titulo (la unica de texto en ese formato; la pinta 0x438D con 0x4965): doce tiles 0x1B seguidos en la fila 10 -la raya bajo el logo- y los ocho literales "SOFTWARE" en la fila 11.
 D 0x432C 0x4337 rotulo_konamis  Lista formato A: "KONAMI" mas el tile 0xC0 (el apostrofe) y la "S" en la fila 3: el "KONAMI'S" sobre el logo grande. La pinta 0x48B8 al arrancar la animacion del titulo.
 
@@ -65,7 +65,7 @@ D 0x4462 0x4466 datos_sin_dueno_4462  Cuatro bytes (00 80 40 C0) que ninguna ins
 D 0x45CC 0x45D0 valores_iniciales_de_la_partida  Los cuatro bytes que 0x45AF copia a 0xE050-0xE053 al empezar: BALL=3 (las bolas blancas de reserva del marcador), 0xE051=1, 0xE052=1 (el umbral en millares BCD de la siguiente bola extra) y 0xE053=2.
 F 0x45CC 4
 
-D 0x461F 0x463F posiciones_iniciales_de_las_bolas  Ocho registros de cuatro bytes (Y, X, numero de patron, color) que 0x45F1 reparte en los registros de bola de 0xE100 (dieciseis bytes por bola: el byte 0 a 0xFF, la Y en el +4, la X en el +6 y el par patron/color mas adentro): la bola blanca en Y=0x70 X=0x40 y el triangulo de bolas de colores (X=0x98, 0xA5, 0xB2), mas la octava entrada en Y=0x80 X=0xE1. Los patrones van de 4 en 4 (sprites de 16x16) y el color es el del palo de cada bola.
+D 0x461F 0x463F posiciones_iniciales_de_las_bolas  Ocho registros de cuatro bytes (Y, X, numero de patron, color) que el bucle de 0x45F6 reparte por los registros de bola de 0xE100, de dieciseis bytes cada uno: el +0 a 0xFF (la bola entra en juego), la Y en el +4, la X en el +6, el patron en el +11 y el color en el +12. La bola blanca sale en Y=0x70 X=0x40 y el triangulo de colores en X=0x98, 0xA5 y 0xB2, mas la octava entrada en Y=0x80 X=0xE1, fuera del pano. Los patrones van de 4 en 4 porque los sprites son de 16x16, y el color es el del palo de cada bola.
 F 0x461F 4
 
 D 0x46BE 0x46C6 registros_del_vdp  Los ocho valores que 0x46AD escribe en los registros 0-7 del VDP al arrancar: 02 E2 0E 7F 07 76 03 E4. Es SCREEN 2 con la tabla de nombres en 0x3800 (R2=0x0E), colores en 0x0000 (R3=0x7F), patrones en 0x2000 (R4=0x07), atributos de sprites en 0x3B00 (R5=0x76), patrones de sprites en 0x1800 (R6=0x03) y borde de color 4, el azul oscuro (R7=0xE4).
@@ -154,8 +154,8 @@ L 0x402F suma_a_a_de  DE += A
 L 0x4034 interrupcion  El gancho H.KEYI apunta aqui: lee el estado del VDP, toca el sonido (0x5C0E), y si no esta ya dentro (0xE005) lee los mandos y corre un paso del juego (0x4337) con las interrupciones abiertas
 L 0x405F init  El INIT que declara la cabecera: instala la interrupcion en H.KEYI, borra la RAM 0xE000-0xEFFF, monta la pantalla y el titulo, y se queda en el bucle de 0x409E: el juego entero corre en la interrupcion
 L 0x40A0 despachador  Coge la direccion de retorno con `pop hl`, le suma el doble del indice A y salta a la palabra que hay alli: la tabla va pegada detras del `call`
-L 0x40AA lee_las_teclas_del_menu  Flancos de teclado en 0xE008/0xE009: fuera del estado 5 (el menu), cualquier tecla de las de jugar rearma la pantalla del titulo (0x43A6); en el menu, arriba/abajo mueven el cursor (0xE006) y el disparo pone el estado 8
-L 0x40E4 lee_los_mandos  Lee el joystick (registros 15 y 14 del PSG) o el teclado segun el bit 6 de 0xE002, y deja los bits en 0xE006-0xE009
+L 0x40AA lee_las_teclas_del_menu  Trabaja con FLANCOS: compara el estado de teclas de este cuadro (0xE009) con el del anterior (0xE008) y solo atiende a las que se acaban de pulsar. Fuera del estado 5 (el menu), cualquiera de las seis teclas de jugar rearma la pantalla del titulo (0x43A6). Dentro del menu, cualquier DIRECCION alterna la opcion (0xE006 solo vale 0 o 1, no hay arriba ni abajo) y cualquiera de los dos botones fija 0xE002 (0x40 un jugador, 0x60 dos) y pasa al estado 8
+L 0x40E4 lee_los_mandos  Lee el joystick por los registros 15 y 14 del PSG Y el teclado por SNSMAT, y los junta con un `or` (0x4106): las dos cosas valen siempre a la vez. Lo que el bit 6 de 0xE002 decide es otra cosa: de que puerto de joystick se lee, siempre el 1 (entrada 0x40E4) o el del jugador con el turno (entrada 0x40E8). El resultado, seis bits -arriba, abajo, izquierda, derecha y dos botones-, va a 0xE009, y lo que habia pasa a 0xE008
 L 0x4337 avanza_el_juego  El paso de juego que corre dentro de la interrupcion: incrementa el contador de cuadros (0xE003) y despacha el estado (0xE000) por la tabla de 0x4350
 L 0x4370 estado_0_prepara_el_titulo  Programa los registros del VDP y arma la subida del logo: 14 pasos (0xE00A) desde la fila 21 (0xE00E=0x3AAA)
 L 0x4381 estado_1_sube_el_logo  Cada dos cuadros pinta el logotipo KONAMI una fila mas arriba (0x491E); al llegar pinta la raya y SOFTWARE (lista 0x431B) y pasa
@@ -171,16 +171,16 @@ L 0x442B estado_8_confirma_la_seleccion  Submodo 0xE201: pide el jingle de salid
 L 0x4470 estado_9_saca_bola  Gasta una bola de reserva (0xE050), refresca el marcador y, con dos jugadores, pinta PLAYER y el numero del que entra
 L 0x44A5 estado_10_monta_la_mesa  Borra el aviso de PLAYER y coloca las bolas en su posicion inicial (0x45D0)
 L 0x44BF estado_11_la_tacada  Refresca los sprites de las bolas (0x463F) y espera a que la fisica diga: 0xE00C en marcha, y 0xE00D distinto de cero manda al estado 15
-L 0x44D3 estado_12_fin_de_tacada  Espera al sonido, y decide: sin bolas de reserva es el GAME OVER (musica, cortina, cartel y estado 13); con ellas, recoloca y sigue (estado 9) o pasa el turno si el otro jugador conserva bolas
-L 0x4526 estado_13_cambia_de_jugador  Intercambia las ternas 0xE050-0xE052 y 0xE080-0xE082, conmuta el bit 7 de 0xE002 y vuelve a sacar bola
+L 0x44D3 estado_12_fin_de_tacada  Espera a que se apague el canal de sonido y decide: sin bolas de reserva es el GAME OVER (musica, cortina, cartel y estado 13); con ellas restablece los intentos y vuelve a sacar por el estado 9, o le pasa el turno al otro si conserva bolas
+L 0x4526 estado_13_cambia_de_jugador  Intercambia byte a byte lo que es de cada jugador: 0xE050 (bolas de reserva), 0xE052 (el umbral de la bola extra) y 0xE053 (el credito) con 0xE080-0xE082. Se SALTA 0xE051 a proposito (el `inc hl` de 0x452F), asi que el numero de fase no cambia de manos: los dos jugadores avanzan por el mismo. Ademas conmuta el bit 7 de 0xE002 -de quien es el turno- y la bandera de cortina 0xE1FB, y vuelve a sacar bola por el estado 9
 L 0x454E estado_14_tras_el_game_over  Deja el cartel un rato: si el otro jugador sigue vivo le pasa el turno; si no, apaga y vuelve al titulo por el estado 7
-L 0x4570 estado_15_mesa_completada  Bola de reserva de regalo, STAGE+1 en BCD, recoloca las bolas y a sacar de nuevo
+L 0x4570 estado_15_mesa_completada  Bola de reserva de regalo, STAGE+1 en BCD, restablece los intentos y a sacar de nuevo
 L 0x4588 pasa_al_estado_siguiente  0xE004=0x50 y estado+1 (la entrada 0x458A deja poner otro contador, y 0x458D solo incrementa)
 L 0x4592 pinta_cartel_y_numero_de_jugador  Pinta la lista que llega en HL y le anade el digito 1 o 2 segun el bit 7 de 0xE002
 L 0x45A2 prepara_la_partida  Borra los marcadores y las variables (0xE043-0xE1FA), copia los valores iniciales y, con dos jugadores, arma la terna del segundo
 L 0x45D0 coloca_las_bolas  Pinta la mesa y reparte los ocho registros de 0x461F en los registros de bola de 0xE100 (dieciseis bytes por bola)
 L 0x463F refresca_los_sprites  Vuelca el estado de las bolas de 0xE100 a los atributos de sprite de la VRAM
-L 0x4699 monta_la_pantalla  Programa el VDP, silencia el PSG (registro 7 = 0xB8) y borra los 16 KB de VRAM
+L 0x4699 monta_la_pantalla  Programa los ocho registros del VDP y escribe 0xB8 en el registro 7 del PSG, que es el mezclador: abre los tres canales de tono, corta los tres de ruido y deja el puerto A de entrada (el joystick) y el B de salida. Lo que mantiene el chip callado son los volumenes, que estan a cero. Luego borra los 16 KB de VRAM de un golpe.
 L 0x46AD programa_los_registros_del_vdp  Escribe los ocho valores de 0x46BE en los registros 0-7
 L 0x46C6 restaura_el_borde  Registro 7 = 0xE0
 L 0x46CD copia_a_vram  BC bytes desde HL a la direccion DE, por el puerto de datos
@@ -193,9 +193,9 @@ L 0x4757 copia_a_los_tres_tercios  Como 0x46CD pero repitiendo la copia en los t
 L 0x476C rellena_los_tres_tercios  Idem con el relleno
 L 0x4782 suma_al_marcador  Suma DE en BCD al marcador del jugador activo (0xE043 o 0xE046 segun el bit 7 de 0xE002), con tope en 999999; de paso da la bola extra al cruzar el umbral de 0xE052 y actualiza el record (0xE040) si toca
 L 0x47F1 refresca_el_marcador  Pinta los rotulos del marcador y los numeros: 1P, 2P si procede, HI, STAGE, BALL y las cifras
-L 0x4833 pinta_el_record  Las seis cifras BCD de 0xE040 en la fila 0
+L 0x4833 pinta_el_numero_de_fase  Las dos cifras BCD de 0xE051 en la fila 0 columnas 28-29, detras del rotulo STAGE. El record lo pinta 0x4815, que entra en el mismo bucle con tres bytes en vez de uno.
 L 0x4888 pinta_ball_y_reserva  El rotulo BALL de 0x48AC y el numero de bolas de reserva (0xE050)
-L 0x48B0 arranca_el_modo_de_juego  Salta al modulo de 0x5EB3 (la mesa y la partida)
+L 0x48B0 arranca_el_modo_de_juego  No salta a ningun sitio: solo pone a cero 0xE1F0, el indice del despachador del modulo de la mesa, para que la partida empiece por su primer submodo. Quien salta de verdad al modulo es 0x48B5, y lo llama el estado 7.
 L 0x48B8 despliega_el_logo_grande  Pinta el KONAMIS de la lista 0x432C y suelta una letra del BILLIARDS verde por llamada (tiles 0xC1+, contador 0xE00A); devuelve acarreo mientras queden
 L 0x48E7 pinta_el_cursor_del_menu  Elige la lista 0x48F6 o 0x4900 segun 0xE006
 L 0x490A carga_los_tiles_del_logo  Descomprime 0x498D en los patrones 0x2008 de los tres tercios y les pone el color blanco
@@ -206,8 +206,8 @@ L 0x4965 pinta_lista_formato_b  Lee el destino de los dos primeros bytes y entra
 L 0x4969 descomprime_formato_b  [ordenes] con bit 7 = copia literales, sin bit 7 = repite el byte siguiente, 0xFF = otro destino, 0x00 = fin
 L 0x4A24 carga_los_tiles_de_la_mesa  Copia los patrones 0x4A70 a 0x2400 de los tres tercios y descomprime sus colores (0x4C40)
 L 0x4A39 pinta_la_mesa  Recorre el plano de 0x4C59: cada grupo es un bloque formato B que se repite N filas desde VRAM 0x38E2; al acabar carga los patrones de sprite (0x4B30) y corta la lista de sprites
-L 0x4E4B recoloca_las_bolas  La llamada comun de los estados 12 y 15 antes de volver a sacar
-L 0x5352 divide_hl_entre_bc  La division de 16 bits del juego: devuelve el cociente en L y aviso de desbordamiento; es la que saca la pendiente del vector del tiro
+L 0x4E4B restablece_los_intentos  No toca ninguna bola: lo unico que hace es poner 0xE053 a 2, los intentos con los que entra la bola siguiente. Cada tacada que no emboca gasta uno (0x4E23), y al agotarse se acaba la bola. La llaman los estados 12 y 15 antes de volver a sacar.
+L 0x5352 divide_hl_entre_bc  La division con resta y restauracion del juego: entra con el dividendo en HL y el divisor en E, y devuelve el cociente en L y el byte bajo del resto en H. Si el cociente no cabe en ocho bits, L sale clavado a 0xFF en vez de dar la vuelta. Es la que saca la pendiente del vector del tiro y las componentes del vector unidad.
 L 0x5383 coseno_de_la_fuerza  Lee la tabla de 0x539C con el indice saturado a 0x40, para el coseno, y con 0x40 menos el indice para el seno
 L 0x5482 convierte_pendiente_en_vector  Con la pendiente (0xE1A3/0xE1A4) lee las cuatro tablas de 0x54E6: deja las componentes en 0xE1A5/0xE1A6 y el angulo del tiro en 0xE1A1, con los reflejos de 0xE1A2
 L 0x5766 carga_los_tiles_del_rotulo_grande  Copia 0x5788 a los patrones 0x2600: el apostrofe blanco y las letras verdes del BILLIARDS
@@ -215,3 +215,563 @@ L 0x5A3A ensena_el_rate  El cartel del multiplicador de la apuesta
 L 0x5BC4 pide_un_sonido  Encola el numero A si su canal esta libre o suena algo menos prioritario: canal de 0xE024 para numeros bajos, 0xE012 para 0x87-0x89, y el tercero para el resto; el puntero sale de la tabla de 0x5D1C
 L 0x5C0E toca_el_sonido  El paso del driver en cada interrupcion: tres canales de 9 bytes desde 0xE010, con 0xFD para los parametros, 0xFE para repetir y 0xFF de fin
 L 0x5EB3 modulo_de_la_mesa  El otro punto con despachador del juego: salta por la tabla de 0x5EB9 con el indice de 0xE1F0
+# --- Tanda 1: las rutinas base, la interrupcion, el INIT y los mandos ---
+
+C 0x4010 DE trae la direccion de VRAM y A el dato; WRTVRM la quiere en HL
+C 0x4011 la BIOS escribe el byte
+C 0x4014 devuelve DE como estaba: quien llama sigue usandolo de puntero
+C 0x4016 mismo cruce para leer
+C 0x401c SETWRT deja el VDP apuntando y en modo escritura
+C 0x4021 el dato de A no se pierde por lo que viene
+C 0x4022 la BIOS guarda en 0x0007 el puerto de datos del VDP de esta maquina
+C 0x4025 al juego alterno: C' es el puerto que usan los `out (c),r` de las copias
+C 0x4028 y A vuelve intacto
+C 0x402a el acarreo del byte bajo sube a H
+C 0x402c sin acarreo no hay nada que arrastrar
+C 0x4034 nada de reentrar mientras se toca el VDP
+C 0x4035 leer el registro de estado es lo que baja la linea de interrupcion del VDP
+C 0x4038 el sonido va primero: un paso del driver por cuadro, pase lo que pase
+C 0x403b 0xE005 es el cerrojo del paso de juego
+C 0x403e ya hay una pasada dentro?
+C 0x4040 pues este cuadro se pierde: solo reconoce la interrupcion y sale
+C 0x4042 echa el cerrojo
+C 0x4044 y ABRE las interrupciones: el paso de juego puede pasarse de cuadro y aqui se le deja
+C 0x4045 bit 6 de 0xE002: si esta puesto, cada jugador lee SU puerto de joystick
+C 0x404b partida de dos: el puerto sale del jugador que toca
+C 0x404f partida de uno: siempre el puerto 1
+C 0x4052 y el paso del juego, ya con la maquina abierta
+C 0x4055 cierra para soltar el cerrojo sin que le pisen
+C 0x4057 fuera el cerrojo
+C 0x405a segunda lectura del estado del VDP: se traga la interrupcion que haya entrado durante el paso
+C 0x4062 0xC3 es el `jp` que se monta a mano en el gancho
+C 0x4064 H.KEYI (0xFD9A), el gancho que la BIOS llama en cada interrupcion
+C 0x406a y detras el destino: a partir de aqui el cartucho manda
+C 0x406d la pila, justo debajo de la RAM de trabajo
+C 0x4070 borra los 4 KB de 0xE000 a 0xEFFF con el LDIR solapado de siempre
+C 0x407d el cerrojo puesto ANTES de abrir: la carga de tiles no debe verse interrumpida por un paso de juego
+C 0x4082 VDP, PSG callado y VRAM a cero
+C 0x4092 ya esta todo cargado: se suelta el cerrojo
+C 0x4095 sonido 0x90, el arranque
+C 0x409a reconoce el VDP antes de abrir, para no entrar con una pendiente
+C 0x409e y aqui se queda para siempre: LO DEMAS PASA DENTRO DE LA INTERRUPCION
+C 0x40a0 A es el indice; se dobla porque la tabla va de dos en dos
+C 0x40a1 la direccion de retorno ES la base de la tabla
+C 0x40a2 y el indice se le suma
+C 0x40a5 saca la palabra
+C 0x40a9 salta sin volver: el `ret` de la rutina destino ya vuelve al que llamo al despachador
+C 0x40aa 0xE008 el estado de teclas del cuadro anterior, 0xE009 el de este
+C 0x40af los bits que han cambiado
+C 0x40b0 ...y que ahora estan a uno: el flanco de pulsacion, para que una tecla mantenida no cuente dos veces
+C 0x40b1 de paso deja HL en 0xE006, la opcion elegida del menu
+C 0x40b4 las seis teclas de jugar: cuatro direcciones y dos botones
+C 0x40b6 ninguna nueva, no hay nada que hacer
+C 0x40b9 cualquier tecla corta la espera en curso
+C 0x40bf el estado 5 es el menu
+C 0x40c1 fuera del menu -attract, logo, lo que sea- cualquier tecla vuelve al titulo
+C 0x40c4 bits 4 y 5: los dos botones
+C 0x40c7 ninguno de los dos, entonces mueve el cursor
+C 0x40c9 la opcion que estaba marcada
+C 0x40cb 0x40 = un jugador (bit 6, el que reparte los puertos de joystick)
+C 0x40cf 0x60 = dos jugadores: el mismo bit 6 mas el bit 5, que es "hay segundo jugador"
+C 0x40d4 estado 8: confirmar la seleccion
+C 0x40da y su submodo a cero
+C 0x40de la opcion no se mueve arriba y abajo: CUALQUIER direccion la alterna
+C 0x40e0 solo hay dos, asi que basta el bit 0
+C 0x40e4 0x8F: bit 7 = el puerto B del PSG es de entrada, bit 6 = 0 = joystick del puerto 1
+C 0x40e6 y a la lectura, sin mirar de quien es el turno
+C 0x40e8 la otra entrada, la de las partidas de dos
+C 0x40ed el bit 7 de 0xE002 es el jugador que tiene el turno
+C 0x40f0 el jugador 2 juega con el joystick del puerto 2 (bit 6 del registro 15)
+C 0x40f2 registro 15 del PSG: la seleccion de puerto
+C 0x40f7 y el 14, donde se leen los pines
+C 0x40f9 la lectura del PSG no puede partirse
+C 0x40fe los pines estan a cero cuando se pulsan
+C 0x40ff se quedan las seis: arriba, abajo, izquierda, derecha y los dos botones
+C 0x4101 guarda el joystick mientras lee el teclado
+C 0x4102 el teclado da los mismos seis bits
+C 0x4106 SE SUMAN LOS DOS: nunca se elige entre joystick y teclado, valen los dos a la vez
+C 0x410a lo de este cuadro pasa a ser lo del anterior
+C 0x410b 0xE009 = ahora
+C 0x410d 0xE008 = antes; de esos dos sale el flanco de 0x40AA
+C 0x410f fila 7 de la matriz: RETURN, SELECT, BS, STOP, TAB, ESC, F5, F4
+C 0x4114 la matriz tambien da cero al pulsar
+C 0x4115 una rotacion: el bit 6 cae en el 5
+C 0x4116 y el bit 5 es el boton B del joystick, asi que SELECT hace de boton B
+C 0x4119 fila 8: derecha, abajo, arriba, izquierda, DEL, INS, HOME, ESPACIO
+C 0x411b SNSMAT se lleva por delante DE
+C 0x4121 dos rotaciones
+C 0x4124 el bit 4 (izquierda) cae en el 2, que es el de izquierda del joystick
+C 0x4129 dos mas, cuatro en total
+C 0x412c el bit 7 (derecha) cae en el 3, y el bit 0 (ESPACIO) en el 4: el ESPACIO es el boton de tiro
+C 0x4131 una quinta rotacion
+C 0x4132 los bits 5 y 6 (arriba y abajo) caen en el 0 y el 1
+C 0x4134 y ya estan las seis teclas colocadas en el mismo formato que el joystick
+# --- Tanda 2: el reloj de estados (0x4337-0x461E) ---
+
+C 0x4337 0xE003 es el contador de cuadros: lo usan los parpadeos y las esperas
+C 0x433b los estados por debajo del 8 son la pantalla del titulo y el menu
+C 0x4340 solo alli se miran las teclas desde aqui; en partida las lee el modulo de la mesa
+C 0x4346 del 11 en adelante ya hay bolas en la mesa
+C 0x4349 y entonces cada cuadro corre la fisica
+C 0x434c el estado vuelve a A para el despachador
+C 0x434d la tabla de las dieciseis palabras va justo detras, sin etiqueta ni puntero
+C 0x4370 catorce filas de subida para el logotipo
+C 0x4375 0x3AAA: nombres 0x3800 + 0x2AA, o sea la fila 21 columna 10
+C 0x437b el titulo necesita el VDP tal y como lo dejo el arranque
+C 0x437e sin contador: el estado 1 va por su cuenta
+C 0x4384 el bit 0 del contador de cuadros al acarreo
+C 0x4385 un cuadro si y otro no: el logo sube a la mitad de velocidad
+C 0x4389 devuelve no-cero mientras le queden filas
+C 0x438a la raya y el SOFTWARE de debajo, ya en su sitio definitivo
+C 0x4390 contador a cero, que son 256 cuadros de espera en el estado 2
+C 0x4397 con 0xE004 a cero el primer `dec` da 0xFF: la pantalla del titulo se queda cinco segundos
+C 0x4399 el borde vuelve a negro
+C 0x43a3 y al estado 3, que solo es un `inc`: la tabla lo manda a 0x458D
+C 0x43a6 el atajo del teclado: la misma pantalla pero sin animacion
+C 0x43a9 y directo al menu
+C 0x43af sin espera: el menu responde ya
+C 0x43b6 acarreo = todavia quedan letras del BILLIARDS
+C 0x43b7 la ultima letra trae detras el menu entero
+C 0x43be otros 256 cuadros, esta vez de menu
+C 0x43c1 el cursor se repinta cada cuadro por si 0xE006 ha cambiado
+C 0x43c8 mientras no se agote, aqui se queda esperando teclas
+C 0x43ca 0xE00B a cero: al volver por el estado 7 sera para el attract
+C 0x43d3 signo positivo mientras a la cortina le queden columnas
+C 0x43d4 con la pantalla ya negra, entra la partida
+C 0x43dd 0xE00B dice de que vuelta se trata
+C 0x43e0 a cero, la que sale del menu: arranca el attract
+C 0x43e8 gastado el aviso
+C 0x43eb y a empezar de nuevo por el estado 0
+C 0x43ef 0x3B00 son los atributos de sprite
+C 0x43f2 una Y de 0xD0 corta la lista: el VDP no dibuja ni ese sprite ni los siguientes
+C 0x43f7 la tabla de nombres
+C 0x43fa 24 filas por 32 columnas
+C 0x4408 el contador de filas del logo, a cero
+C 0x440b la version de golpe: se le llama en bucle
+C 0x440e hasta que suelta el acarreo
+C 0x4410 el copyright de 1984
+C 0x4416 los tres rotulos del menu, la entrada que tambien usa el estado 4
+C 0x442b 0xE201, el submodo dentro del estado 8
+C 0x442e submodo 1
+C 0x4431 submodo 2
+C 0x4432 el salto sin etiqueta cae en 0x4466, por encima de los cuatro bytes huerfanos de 0x4462
+C 0x4434 submodo 0: fija el cursor donde se eligio
+C 0x4437 0x50 cuadros de parpadeo
+C 0x443c sonido 0x8D: el pitido de aceptar
+C 0x4441 y al submodo siguiente
+C 0x4449 agotado el parpadeo, al submodo 2
+C 0x444c el propio contador marca el ritmo del parpadeo
+C 0x444d la opcion elegida
+C 0x4451 1 PLAYER
+C 0x4456 2 PLAYERS
+C 0x445a el bit 2 del contador: cuatro cuadros vista, cuatro cuadros borrada
+C 0x445c cuatro de cada ocho, pintada
+C 0x445f y las otras cuatro, borrada con la misma lista
+C 0x4466 submodo 2: la seleccion ya esta decidida
+C 0x446a la fisica, parada
+C 0x4470 0xE1FB dice si esta entrada lleva cortina
+C 0x4474 se gasta al leerlo: solo vale para una vuelta
+C 0x4477 puesto a uno, se salta la cortina (viene de un cambio de jugador)
+C 0x4479 a cero, primero se borra la pantalla columna a columna
+C 0x447d 0xE050: las bolas de reserva
+C 0x4480 sacar cuesta una
+C 0x4487 el bit 5 de 0xE002: hay segundo jugador
+C 0x448b 0x4314 no es una lista: son los seis tiles de PLAYER, sin la cabecera de destino que llevan delante
+C 0x4491 0x386C = fila 3, columna 12; el aviso del turno va arriba, no donde el GAME OVER
+C 0x4494 copia cruda, sin pasar por el interprete
+C 0x4497 copia_a_vram no mueve DE, asi que la suma se hace aqui
+C 0x449c y detras el 1 o el 2 del jugador
+C 0x449f 0x4F, que el `inc` de abajo deja en 0x50
+C 0x44a1 sin segundo jugador se llega con A a cero: un solo cuadro de espera y a la mesa
+C 0x44a9 mientras se lee el PLAYER n, los sprites siguen refrescandose
+C 0x44b0 ocho tiles desde 0x386C: PLAYER, el hueco y el digito
+C 0x44b9 y las bolas a su sitio
+C 0x44c2 0xE00C: la fisica en marcha
+C 0x44c7 se ha movido algo, asi que la tacada ha terminado
+C 0x44cb 0xE00D: la mesa se ha quedado limpia
+C 0x44cc nada que decidir, sigue la tacada
+C 0x44cd estado 15: mesa completada
+C 0x44d3 0xE024 es el canal de sonido de mas peso
+C 0x44d6 el 5 es el golpe de bola: hasta que no acabe no se decide nada
+C 0x44d9 0xE1AD: hay multiplicador de apuesta pendiente
+C 0x44e2 0xE1B6 a uno: la proxima llamada a coloca_las_bolas NO recolocara
+C 0x44e6 la fisica, parada
+C 0x44ec quedan bolas de reserva?
+C 0x44ed si quedan, la partida sigue
+C 0x44f2 no repetir la musica si ya esta sonando
+C 0x44f6 0x8A: la musica del final
+C 0x44fc y se acabo el credito
+C 0x4503 el cartel GAME OVER con el numero de jugador
+C 0x4509 0x0D, que el `inc` de L_458D convierte en el estado 14
+C 0x450f contador a cero: 256 cuadros de cartel
+C 0x4512 los intentos de la bola siguiente, otra vez a dos
+C 0x4515 0xE080 y 0xE082: las reservas y el credito del OTRO jugador
+C 0x451f de entrada, la siguiente entrada sin cortina
+C 0x4521 al otro le queda algo, asi que le toca: estado 13
+C 0x4523 no queda nadie mas, asi que se sigue con cortina
+C 0x4526 la terna del jugador que sale
+C 0x4529 y la del que entra
+C 0x452c intercambia las bolas de reserva
+C 0x452f SALTA 0xE051: el numero de fase NO se intercambia, los dos jugadores comparten el mismo
+C 0x4530 el umbral de la bola extra
+C 0x4533 y el credito
+C 0x453a el bit 7 de 0xE002 es de quien es el turno
+C 0x4541 y la bandera de la cortina se conmuta: quien entra por aqui si la ve
+C 0x4546 el intercambio de un byte, con los dos punteros avanzando
+C 0x4551 mientras el cartel siga puesto
+C 0x4553 las bolas del otro jugador
+C 0x4557 0x0C, que con el `inc` de abajo da el estado 13
+C 0x455c cortina saltada para el que entra
+C 0x455e le queda vida al otro: se le pasa el turno
+C 0x4560 no queda nadie: se acabo la partida
+C 0x4564 fuera el reparto de puertos de joystick, que vuelve a mandar el 1
+C 0x4566 el 6 sirve dos veces: aviso en 0xE00B y estado 6, que con el `inc` da el 7
+C 0x4573 completar la mesa regala una bola
+C 0x4576 y sube la fase, en BCD para que el marcador la pinte tal cual
+C 0x457e la mesa ya no esta limpia
+C 0x4581 estado 8 mas el `inc` = 9, a sacar bola
+C 0x4588 0x50 cuadros, la espera de siempre
+C 0x458a la entrada con contador a medida
+C 0x458d y la que solo pasa de estado
+C 0x4598 el bit 7 al bit 0
+C 0x459b 0x31 es el ASCII del uno, que tambien es su numero de tile
+C 0x459d un hueco entre el rotulo y la cifra
+C 0x45a2 desde 0xE043
+C 0x45a8 hasta 0xE1FB: marcadores, bolas y todo el estado de la mesa
+C 0x45af los cuatro valores de arranque
+C 0x45bd hay segundo jugador?
+C 0x45c3 tres bolas para el, igual que el primero
+C 0x45c6 su umbral de bola extra
+C 0x45c9 y sus dos creditos
+C 0x45d0 el fieltro y las bandas
+C 0x45d6 0xE1B6 lo pone el fin de tacada: entonces las bolas se quedan donde estan
+C 0x45da se gasta al leerlo
+C 0x45dd puesto, solo habia que repintar la mesa
+C 0x45e1 los siete bytes de 0xE1D7
+C 0x45ee los registros de bola, de dieciseis bytes cada uno
+C 0x45f1 la tabla de arranque, de cuatro bytes por bola
+C 0x45f4 las ocho bolas
+C 0x45f6 el byte +0 a 0xFF: la bola entra en juego
+C 0x45f8 al +4
+C 0x45fd la Y
+C 0x4601 al +6
+C 0x4602 la X
+C 0x4605 al +11
+C 0x460a el numero de patron
+C 0x460e y el color, en el +12
+C 0x4611 al +16, la bola siguiente
+C 0x4618 0xE194 apunta a la bola en juego, y se empieza por la blanca
+L 0x466D vuelca_cuatro_bolas  Escribe de un tiron los dieciseis bytes de cuatro sprites por el puerto de datos: de cada registro de bola saca la Y (+4), la X (+6), el patron (+11) y el color (+12), y salta al +16 para la siguiente.
+L 0x4815 pinta_el_record  Las seis cifras BCD de 0xE040-0xE042 en la fila 0 columnas 15-20, detras del rotulo HI.
+L 0x4821 pinta_el_marcador_de_un_jugador  Las seis cifras del marcador de quien diga el bit 7 de A: 0xE043 en la fila 0 (entrada 0x481E con el turno de verdad) o 0xE046 en la fila 1, siempre a partir de la columna 5.
+L 0x483B pinta_cifras_bcd  El bucle comun del marcador: B bytes BCD leidos de HL hacia ATRAS, cada uno en dos tiles (el digito alto primero) a partir de la direccion de VRAM DE.
+L 0x4858 parpadea_el_jugador_del_turno  Del estado 11 en adelante, uno de cada 32 cuadros: lee de la VRAM el rotulo 1P o 2P del jugador que tiene el turno (fila 0 o 1, columna 2) y lo borra si estaba, o lo pinta si no. La lectura de la propia pantalla es lo que hace de bandera: no hay variable de parpadeo.
+# --- Tanda 3: sprites, VDP, el interprete A y el marcador (0x463F-0x48B7) ---
+
+C 0x4642 la entrada que usa el estado 10 mientras espera: refresca sin tocar la fisica
+C 0x4645 0xE00A distinto de cero: hay una animacion pintando y los sprites no se tocan
+C 0x4647 los atributos de sprite
+C 0x464d el contador de cuadros decide el orden
+C 0x4651 su bit 0 al acarreo
+C 0x4652 0xE104: la Y de la primera bola
+C 0x4657 0xE144: la Y de la quinta
+C 0x465a los dieciseis bytes tienen que salir de un tiron: el VDP va autoincrementando
+C 0x465e el mismo bit 0, otra vez al acarreo
+C 0x4660 y el reparto se invierte
+C 0x4668 asi que cada cuadro se turna que grupo de cuatro bolas va primero en la lista
+C 0x466d cada bola son cuatro bytes seguidos en la VRAM
+C 0x4673 cuatro bolas por pasada
+C 0x4675 la Y, en el +4 del registro de bola
+C 0x467a al +6
+C 0x467c la X
+C 0x4681 al +11
+C 0x4686 el numero de patron
+C 0x468b al +12
+C 0x468c el color
+C 0x4691 al +16, el registro de la bola siguiente
+C 0x469c registro 7 del PSG: el mezclador
+C 0x469e 0xB8 abre los tres canales de tono, corta los tres de ruido y deja el puerto A de entrada para el joystick
+C 0x46a3 los 16 KB enteros de VRAM
+C 0x46ad los ocho valores estan seguidos
+C 0x46b2 empezando por el registro 0
+C 0x46b4 el valor
+C 0x46b5 y C dice a que registro va
+C 0x4728 la cortina devuelve cero al terminar
+C 0x472a la misma lista sirve para borrar: basta con enmascarar los tiles a cero
+C 0x472e y con 0xFF pasan tal cual
+C 0x4730 los dos primeros bytes son el destino en VRAM
+C 0x4734 el tile siguiente
+C 0x4736 la comprobacion se hace sobre una copia, que A hace falta entero
+C 0x4737 0xFF + 1 = 0: fin de la lista
+C 0x4739 0xFE + 1 + 1 = 0: viene otro destino
+C 0x473c y si no, es un tile: la mascara decide si pinta o borra
+C 0x4740 la VRAM avanza sola
+C 0x4743 0xF0: blanco sobre transparente
+C 0x4745 los colores de los tiles 0x30-0x5F (0x30 * 8 = 0x180)
+C 0x4748 384 bytes, que son los 48 glifos
+C 0x474e los glifos
+C 0x4754 y sus patrones, 0x2000 + 0x180
+C 0x4757 en SCREEN 2 el generador son tres tablas de 0x800, una por tercio de pantalla
+C 0x4758 tres pasadas, con B del juego alterno porque BC lleva la longitud
+C 0x475b copia_a_vram se lleva por delante HL, DE y BC
+C 0x4764 sumar 8 al byte alto es sumar 0x800: el tercio siguiente
+C 0x4770 aqui es A el que lleva el dato, asi que tambien se guarda
+C 0x4779 la misma suma de 0x800, pero por HL porque A esta ocupado
+C 0x4785 el bit 6 de 0xE002 al signo: dice si hay partida de verdad
+C 0x4786 en el attract nadie puntua
+C 0x4787 y el bit 7 quedo en el acarreo: de quien es el turno
+C 0x478c 0xE046, el marcador del segundo jugador
+C 0x478e las tres cifras en BCD, de dos en dos
+C 0x4790 `daa` tras cada suma: el marcador se guarda ya en decimal para pintarlo tal cual
+C 0x4792 DE se va quedando con lo que hay, para compararlo con el record
+C 0x479d el tercer byte solo recibe el acarreo
+C 0x47a3 seis nueves: se ha desbordado el marcador y se clava en 999999
+C 0x47a6 dos escrituras de 16 bits para tres bytes, aprovechando el solape
+C 0x47b1 0xE052: el millar en el que toca bola extra
+C 0x47b4 el byte alto del marcador ya lo ha pasado?
+C 0x47b9 el siguiente umbral, cinco millares mas arriba
+C 0x47bc si se sale de la cuenta, se pone tan alto que no vuelve a saltar
+C 0x47c6 una bola de regalo
+C 0x47c7 y a la vista en el marcador
+C 0x47ca sonido 7: el aviso de la bola extra
+C 0x47d3 0xE042 es el byte alto del record
+C 0x47d7 el marcador aun no llega
+C 0x47dc lo pasa de largo: record nuevo
+C 0x47df empatados arriba, hay que mirar los cuatro digitos de abajo
+C 0x47e5 el record sigue siendo mejor
+C 0x47e7 y si no, el marcador pasa a ser el record
+C 0x47f1 el marco: 1P, HI y STAGE
+C 0x47fa hay segundo jugador?
+C 0x47fe entonces tambien el 2P de la fila 1
+C 0x4807 invierte el turno para pintar el marcador del OTRO
+C 0x480c las bolas de reserva
+C 0x480f y el numero de fase
+C 0x4815 el record: 0xE042 es el byte alto, y el bucle va hacia atras
+C 0x4818 fila 0, columna 15, detras del HI
+C 0x481e y por ultimo el marcador del jugador que tiene el turno
+C 0x4821 fila 0, columna 5: el del primer jugador
+C 0x4824 0xE045, otra vez el byte alto
+C 0x4827 el bit 7: de quien es el turno
+C 0x482a 0x3825 = fila 1, columna 5
+C 0x482c y su marcador, 0xE048
+C 0x482f tres bytes BCD, o sea seis cifras
+C 0x4833 fila 0, columna 28, detras del STAGE
+C 0x4836 0xE051, el numero de fase
+C 0x4839 un solo byte: dos cifras
+C 0x483d el digito de abajo
+C 0x483f 0x30 es el ASCII del cero, y tambien su numero de tile
+C 0x4843 y el de arriba
+C 0x4845 cuatro rotaciones para bajarlo
+C 0x484b el de arriba va primero
+C 0x4853 los bytes se leen del mas alto al mas bajo
+C 0x4858 H se queda con el contador de cuadros y L con 0xE002
+C 0x485b uno de cada 32 cuadros
+C 0x485f fila 0, columna 2
+C 0x4863 0x40, el tile que hace de separador
+C 0x4865 0x31: el "1" de 1P
+C 0x4867 el bit 7 al acarreo
+C 0x486a fila 1, columna 2
+C 0x486c y el "2" de 2P
+C 0x486d 0x50, la "P"
+C 0x486f mira lo que hay puesto ahora mismo
+C 0x4873 esta vacio, asi que toca pintarlo
+C 0x4875 esta puesto, asi que toca borrarlo: de ahi el parpadeo
+C 0x4888 fila 1, columna 20
+C 0x488b los cuatro tiles del BALL
+C 0x4894 fila 1, columna 29
+C 0x4897 las bolas de reserva
+C 0x489b cinco huecos, se pinten o no
+C 0x489d 0x5F: el tile de la bola rellena
+C 0x489f una menos
+C 0x48a0 mientras queden, bolita
+C 0x48a3 y cuando se acaban, hueco
+C 0x48a8 se pinta de derecha a izquierda
+C 0x48b1 no salta al modulo de la mesa: solo rearma su despachador al primer submodo
+# --- Tanda 4: el logo, el interprete B y la carga de tiles (0x48B8-0x4A38) ---
+
+C 0x48b8 el KONAMI'S de arriba se repinta entero en cada llamada
+C 0x48be 0xE00A cuenta las letras ya soltadas
+C 0x48c3 quince letras y se acabo
+C 0x48c7 0x38A9 = fila 5, columna 9
+C 0x48ca guarda el indice, que A va a cambiar
+C 0x48cb la columna avanza con la letra
+C 0x48ce los tiles de la mitad de ARRIBA empiezan en 0xC1
+C 0x48d3 una fila mas abajo
+C 0x48d8 y quince mas alla estan las mitades de ABAJO: cada letra son dos tiles
+C 0x48dd acarreo: aun quedan letras por soltar
+C 0x48df la ultima trae detras el copyright
+C 0x48e5 y limpia el acarreo: aqui termina la animacion
+C 0x48ea la lista con el cursor arriba
+C 0x48f0 y la que lo pone abajo; las dos borran la otra fila, asi que no hay que limpiar nada
+C 0x490a el bloque comprimido del logotipo
+C 0x490d 0x2008: los patrones a partir del tile 1
+C 0x4913 y sus colores, tambien desde el tile 1
+C 0x4916 216 bytes: veintisiete tiles
+C 0x4919 blanco sobre transparente
+C 0x491e 0xE00E lleva la esquina del logo en la VRAM
+C 0x4921 restar 32 es subir una fila
+C 0x4928 el logotipo son los tiles 1 a 26 seguidos
+C 0x492a la fila de arriba, tres tiles
+C 0x492f la de en medio, once, y de paso deja 0x0C en C
+C 0x4935 y la de abajo, doce
+C 0x4939 con BC ya en 12 por el `djnz` de la ultima fila
+C 0x493a DE quedo en la fila siguiente y HL en la ultima pintada
+C 0x493b y se borra la fila que el logo acaba de dejar atras
+C 0x4941 una fila menos de las catorce
+C 0x4943 la direccion de entrada, para poder devolver la fila siguiente
+C 0x4944 el cruce que espera escribe_en_vram
+C 0x4949 la columna avanza
+C 0x494a y el numero de tile tambien: van seguidos
+C 0x494d DE vuelve a ser el principio de la fila
+C 0x494e y HL sale apuntando 32 bytes mas abajo: la fila de debajo
+C 0x4953 tres pasadas, una por tercio
+C 0x4955 descomprime_formato_b se lleva por delante los tres pares
+C 0x495e sumar 8 al byte alto de DE es saltar 0x800, el tercio siguiente
+C 0x4965 la entrada con el destino delante
+C 0x4969 y la que ya lo trae puesto en DE
+C 0x496c la orden siguiente
+C 0x496e 0x00 cierra el bloque
+C 0x4970 0xFF: se acabo este trozo y viene otro destino
+C 0x4974 el bit 7 separa los dos tipos de orden
+C 0x4978 sin el bit 7, el numero es la cuenta de repeticiones
+C 0x4979 y detras va el byte que se repite
+C 0x497b por el puerto, que el VDP ya va autoincrementando
+C 0x4983 con el bit 7, lo que queda es cuantos literales vienen
+C 0x4988 y se copian tal cual con el cuerpo de copia_a_vram
+C 0x4a24 0x2400: los tiles de la mesa empiezan en el 0x80
+C 0x4a27 472 bytes, cincuenta y nueve tiles
+C 0x4a2d los patrones, iguales en los tres tercios
+C 0x4a30 los colores van comprimidos
+C 0x4a33 0x0400: los colores del tile 0x80 en adelante
+# --- Tanda 5: la mesa, el tiro y el reparto de la fisica (0x4A39-0x4E6A) ---
+
+L 0x4CA8 calcula_el_tiro  Convierte la mira en velocidad. Resta la posicion de la bola blanca (0xE104/0xE106) a la de la OCTAVA entrada de la tabla de bolas (0xE174/0xE176), que no es una bola sino el punto al que se apunta, y guarda las dos diferencias con signo en 0xE188 (dY) y 0xE18A (dX). Con ellas saca la distancia por Pitagoras -dos cuadrados, una suma y la raiz de 0x5376- y divide cada componente por ella para tener el vector unidad escalado a 256 (0xE18E, 0xE190). Ese vector, multiplicado (0xE1A0)+1 veces, es la velocidad inicial de la blanca; ademas deja su energia en el +1, su angulo en el +2 y limpia las banderas de las otras seis bolas antes de pedir el sonido 3, el golpe del taco.
+L 0x4DB1 paso_de_la_fisica  Un cuadro de mesa: recorre las siete bolas dos veces -primero moviendolas (0x4E6B) y luego resolviendo lo que se toca (0x53DD)-, y si al acabar ninguna conserva energia, deja pasar la cuenta atras de 0xE1F6 y decide como termina la tacada.
+L 0x4E51 mira_si_la_mesa_esta_limpia  Junta el byte +0 de las seis bolas de color: si ninguna sigue en la mesa, pide el sonido 8 y pone el estado 15, el de mesa completada.
+L 0x5346 multiplica_h_por_e  El producto 8x8 del juego: HL = H * E, por desplazamientos y sumas, ocho vueltas.
+L 0x5376 raiz_cuadrada  La raiz cuadrada de HL, por el metodo de los impares: resta 1, luego 0, luego 2 y 2, luego 4 y 4... y devuelve en BC cuantas vueltas ha aguantado. Comprobado sobre los 65536 valores posibles: devuelve exactamente round(sqrt(HL)), la raiz redondeada al entero mas cercano, nunca truncada.
+L 0x5430 saca_la_pendiente_del_vector  Toma la velocidad de la bola que apunta HL (+7 la componente Y, +9 la X, las dos de 16 bits con signo), se queda con los valores absolutos y apunta los dos espejos en 0xE1A2 (bit 0 = la Y iba hacia arriba, bit 1 = la X hacia la izquierda), divide las dos por 32 y compara: la mayor pasa a ser el divisor y la menor el dividendo, de modo que la pendiente que sale de la division siempre cae entre 0 y 255. Asi el juego guarda una direccion como un octante mas una pendiente, y le basta con tablas de 256 entradas.
+
+C 0x4a39 la mesa se pinta de un tiron, sin que entre la interrupcion en medio
+C 0x4a3a el plano de filas
+C 0x4a3d 0x38E2 = fila 7, columna 2: la esquina de arriba a la izquierda de la mesa
+C 0x4a42 un cero cierra el plano
+C 0x4a45 el numero dice cuantas filas seguidas van con este mismo dibujo
+C 0x4a46 y detras del numero empieza el bloque
+C 0x4a49 se recarga en cada vuelta porque el interprete deja HL al final del bloque
+C 0x4a51 y la fila de abajo
+C 0x4a56 las filas repetidas
+C 0x4a58 al salir, HL ya esta en el numero del grupo siguiente
+C 0x4a5a 0x1800: los patrones de sprite
+C 0x4a5d los mismos bytes que ya se copiaron como tiles de la mesa
+C 0x4a60 288 bytes: nueve sprites de 16x16
+C 0x4a66 0x3B1C es la Y del sprite 7, el octavo
+C 0x4a69 y con 0xD0 el VDP deja de dibujar ahi: en la mesa solo hay siete bolas
+C 0x4caa 0xE19F: hay tiro en marcha
+C 0x4cad la Y de la bola blanca
+C 0x4cb0 la Y de la OCTAVA entrada, que no es una bola: es el punto al que se apunta
+C 0x4cb3 dY = mira - blanca
+C 0x4cb5 y el signo se extiende a mano a 16 bits
+C 0x4cbb 0xE188 = dY
+C 0x4cbf a la X de la blanca
+C 0x4cc1 y a la X de la mira
+C 0x4ccb 0xE18A = dX
+C 0x4ccf B a 0xFF significa que dX es negativo
+C 0x4cd2 y entonces se le da la vuelta: para el cuadrado da igual el signo
+C 0x4cd4 el mismo valor en los dos: H * E es dX al cuadrado
+C 0x4cd9 guardado
+C 0x4cdf ahora el signo de dY
+C 0x4ce7 dY al cuadrado
+C 0x4cea y se le suma el de dX
+C 0x4cef la raiz: BC sale con la distancia entre la bola y la mira
+C 0x4cf5 A hara de bandera de signo
+C 0x4cf6 dY negativo?
+C 0x4cf9 se apunta el signo en el juego alterno
+C 0x4cfc y se trabaja con el valor absoluto
+C 0x4d01 dY pasa al byte ALTO: dividir asi da el cociente con ocho bits de fraccion
+C 0x4d04 C, el byte bajo de la distancia
+C 0x4d05 dY * 256 / distancia: la componente Y del vector unidad
+C 0x4d09 habia que darle la vuelta?
+C 0x4d0e complemento a dos de HL
+C 0x4d13 0xE18E = componente Y, con signo
+C 0x4d16 y lo mismo con dX
+C 0x4d37 0xE190 = componente X
+C 0x4d3a 0xE1A0: la fuerza que se eligio
+C 0x4d3d una unidad mas, que la fuerza cero tambien mueve
+C 0x4d41 multiplicar sumando: son pocas vueltas
+C 0x4d47 el +9 de la bola blanca: su velocidad X, de 16 bits
+C 0x4d4a y la componente Y
+C 0x4d55 el +7: su velocidad Y
+C 0x4d59 0x20 por cada unidad de fuerza
+C 0x4d5f el +1: la energia que le queda a la bola, y la bandera de que se mueve
+C 0x4d65 de la velocidad recien puesta saca la pendiente y el angulo
+C 0x4d68 0xE1A5, la componente que dejo el paso anterior
+C 0x4d6c escalada a 24/256
+C 0x4d72 al +13 de la bola
+C 0x4d7f y al +14
+C 0x4d82 0xE1A1, el angulo del tiro
+C 0x4d85 al +2 de la bola
+C 0x4d88 el +15 de cada bola
+C 0x4d8f de dieciseis en dieciseis: las siete bolas
+C 0x4d95 y los siete bytes de 0xE1D0
+C 0x4d9f sonido 3: el golpe del taco
+C 0x4da5 se acabo de apuntar
+C 0x4dab 0xE1F6: la cuenta atras que corre cuando todo se para
+C 0x4db1 primera vuelta: mover
+C 0x4db4 el +0 dice si la bola sigue en la mesa
+C 0x4db6 y el +1 si le queda energia: hacen falta las dos
+C 0x4db8 la rutina de mover trabaja con 0xE194
+C 0x4dbb quieta o embocada, no se toca
+C 0x4dc1 la bola siguiente, dieciseis bytes mas alla
+C 0x4dc5 hasta 0xE16F: SIETE bolas, que la octava es la mira
+C 0x4dca segunda vuelta: los choques
+C 0x4de3 el +1 de la primera bola
+C 0x4de6 el salto de un registro de bola al siguiente
+C 0x4dec junta la energia de las siete
+C 0x4df1 mientras quede alguna rodando, no hay nada que decidir
+C 0x4df5 todo parado: corre la cuenta atras
+C 0x4df7 al llegar a cero se queda clavada ahi
+C 0x4df8 se acabo el tiro
+C 0x4e00 0xE1AD: se ha embocado algo en esta tacada
+C 0x4e0b y entonces la tacada termina bien
+C 0x4e0e 0xE1D0: la primera bola embocada de la tanda
+C 0x4e15 hay recuento pendiente, asi que a la animacion del multiplicador
+C 0x4e1b la tacada ya esta dada por terminada
+C 0x4e20 0xE053: los intentos que quedan con esta bola
+C 0x4e24 aun queda alguno
+C 0x4e27 sonido 6: se agotaron los intentos
+C 0x4e2e y la tacada termina
+C 0x4e32 el otro jugador conserva algo?
+C 0x4e39 no hay a quien pasarle el turno
+C 0x4e3d le devuelve la bola gastada
+C 0x4e40 estado 13: cambio de jugador
+C 0x4e43 y que no se recoloquen las bolas al entrar
+C 0x4e4b los dos intentos de la bola siguiente
+C 0x4e51 el +0 de la primera bola de color
+C 0x4e55 las seis de color, que la blanca no cuenta
+C 0x4e5f queda alguna en la mesa
+C 0x4e60 sonido 8: la mesa esta limpia
+C 0x4e65 y el estado 15
+C 0x5346 el multiplicando entra en H y el multiplicador en E
+C 0x5348 HL empieza a cero, con H haciendo de registro de desplazamiento
+C 0x5349 ocho bits
+C 0x534b saca el bit de arriba de H y a la vez hace hueco abajo
+C 0x534e si el bit sale a uno, suma
+C 0x5352 el dividendo pasa a DE
+C 0x5353 y el divisor, que llego en E, a BC
+C 0x5356 HL sera el resto
+C 0x5359 dieciseis vueltas, con el contador en el juego alterno
+C 0x535c el bit de arriba del dividendo
+C 0x5360 baja al resto
+C 0x5362 se prueba a restar
+C 0x5364 no cabe: se deshace
+C 0x5366 cabe: un uno al cociente, que va entrando por abajo del propio dividendo
+C 0x536e H se queda con el resto
+C 0x536f y L con el cociente
+C 0x5370 el cociente no cabia en ocho bits
+C 0x5373 y entonces sale clavado a 0xFF
+C 0x5376 BC cuenta los impares
+C 0x5379 el primer impar es el 1, y el acarreo lo pone
+C 0x537a los impares se restan de dos en dos: 2k+1 = k + (k+1)
+C 0x537c se paso: BC es la raiz
+C 0x5380 el impar siguiente
