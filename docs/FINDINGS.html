@@ -1,0 +1,117 @@
+<title>Findings — Konami&#x27;s Billiards (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-CARTRIDGE.html">The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html" style=color:var(--tinta)>Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/HALLAZGOS.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="findings">Findings</h1>
+<p>Things that turned up while reading the code instruction by instruction and that do not fit on any of the other pages. Nearly all of them are of the same family: someone squeezing bytes with a great deal of craft.</p>
+<h2 id="three-bytes-set-with-two-writes">Three bytes set with two writes</h2>
+<p>When the score overflows, the game pins it at 999999. Six nines are three BCD bytes, and setting them costs this:</p>
+<pre><code>ld bc,09999h
+ld (0e040h),bc
+ld (0e041h),bc</code></pre>
+<p>Two <b>overlapping</b> two-byte writes to leave three bytes at 0x99. The second one overwrites the first one&#x27;s high byte with the same value. That works out at one byte of code per byte written, against the nine it would take done by hand.</p>
+<h2 id="two-increments-instead-of-two-comparisons">Two increments instead of two comparisons</h2>
+<p>The text list interpreter (0x472E) has to recognise two markers: 0xFF to finish and 0xFE to change destination. The obvious way would be two <code>cp</code> with their two jumps. What is there is this:</p>
+<pre><code>ld b,a
+inc b
+ret z          ; it was 0xFF
+inc b
+jr z,L_4730    ; it was 0xFE</code></pre>
+<p>The byte is copied into B so as not to lose A, and incremented: 0xFF plus one is zero and sets the flag, and another increment does the same for 0xFE. Two markers recognised with two one-byte instructions.</p>
+<h2 id="the-blink-has-no-variable-it-looks-at-the-screen">The blink has no variable: it looks at the screen</h2>
+<p>While there are balls on the table, the 1P or 2P label of whoever has the turn blinks. There is no flag anywhere saying whether it is currently on or off. What 0x4858 does is <b>read from VRAM</b> the tile sitting in that position: if it is empty it draws it, and if there is something there it erases it.</p>
+<p>The screen itself acts as the memory. And since it only comes in one frame in every thirty-two — the low five bits of the frame counter at zero — the blink works out at a little over half a second per side.</p>
+<h2 id="the-bit-that-says-this-one-counts">The bit that says &quot;this one counts&quot;</h2>
+<p>0xE002 keeps three things in three bits, and the one in bit 6 is the most useful of the lot: it says whether a real game is in progress.</p>
+<p>With that bit clear nothing scores (0x4786 leaves the scoring routine the moment it looks at it) and nothing sounds (0x5BC7 does the same in the sound request routine). That is exactly the state the demonstration runs in, which is why it plays silently and without scoring. And the same bit also decides which joystick port is read: always port 1, or the one belonging to whoever has the turn.</p>
+<p>One bit, three consequences, and all three consistent.</p>
+<h2 id="nobody-stares-at-the-table-forever">Nobody stares at the table forever</h2>
+<p>While you are aiming, a clock runs at 0xE202 that only advances when the frame counter is zero, that is, <b>one frame in every 256</b>. When it reaches zero, the shot is written off.</p>
+<p>Since the counter is reset by any key and then counts 256 passes, the full countdown is 65,536 frames: over twenty minutes without touching a thing. It is meant for a machine left switched on, not to hurry anyone along.</p>
+<h2 id="the-keyboard-dresses-up-as-a-joystick-using-rotations">The keyboard dresses up as a joystick using rotations</h2>
+<p>The game&#x27;s six inputs — four directions and two buttons — are read from the joystick through the PSG and from the keyboard through the BIOS, and <b>both count at all times</b>: there is nothing to choose, they are merged with an <code>or</code>.</p>
+<p>For them to be mergeable, the keyboard bits have to land in the same positions as the joystick ones, and that is achieved with five chained rotations that leave each key where it belongs. Simulating the code key by key, the mapping is this:</p>
+<table><tr><th>key</th><th>acts as</th></tr><tr><td>arrows</td><td>the four directions</td></tr><tr><td>SPACE</td><td>fire button</td></tr><tr><td>SELECT</td><td>second button</td></tr></table>
+<p>And no other key on the two rows that are read produces anything at all.</p>
+<h2 id="the-stage-wraps-at-a-hundred">The stage wraps at a hundred</h2>
+<p>The stage number (0xE051) goes up in BCD with <code>add a,001h</code> and <code>daa</code>, and nothing checks for overflow. Past 99 it goes back to 00 and the scoreboard carries on as if nothing had happened.</p>
+<footer><p><em>Konami's Billiards</em> was published by Konami for the MSX; its catalogue number is RC-706 and it is 16 KB. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

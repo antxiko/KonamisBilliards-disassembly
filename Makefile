@@ -91,7 +91,26 @@ densidad:
 juega: $(ROM)
 	"C:/Program Files/openMSX/openmsx.exe" -machine Philips_VG_8020 -cart $(ROM)
 
+# ---------------------------------------------------------------------------
+# Las imagenes y la web
+# ---------------------------------------------------------------------------
+# Aqui no hay ni una captura: las SIETE imagenes salen de la ROM. graficos.py
+# repite las rutinas de carga del cartucho y sus dos interpretes de dibujo
+# sobre una VRAM vacia y luego la revela como la revelaria el VDP, asi que no
+# hace falta emulador y esto cuelga de `make` sin problema.
+imagenes: $(ROM)
+	@mkdir -p docs/imagenes
+	python3 tools/graficos.py $(ROM) docs/imagenes
+
+web: imagenes
+	python3 tools/md2html.py docs en
+	python3 tools/md2html.py docs/es es
+	python3 tools/make_web.py docs/imagenes docs/index.html en
+	python3 tools/make_web.py docs/imagenes docs/es/index.html es
+	@touch docs/.nojekyll
+	@python3 tools/check_enlaces.py docs
+
 clean:
 	rm -rf $(WORK)/billiards.trace.json $(WORK)/billiards.map $(WORK)/png
 
-.PHONY: all comprueba trace listado notas verify sanity test densidad juega clean
+.PHONY: all comprueba trace listado notas verify sanity test densidad juega         imagenes web clean

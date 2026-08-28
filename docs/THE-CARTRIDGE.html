@@ -1,0 +1,119 @@
+<title>The cartridge — Konami&#x27;s Billiards (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Home</a><a href="GETTING-STARTED.html">Start</a><a href="THE-GAME.html">The game</a><a href="THE-CARTRIDGE.html" style=color:var(--tinta)>The cartridge</a><a href="THE-CODE.html">The code</a><a href="FINDINGS.html">Findings</a><a href="OPEN-QUESTIONS.html">Open questions</a><a href="es/EL-CARTUCHO.html" style="margin-left:auto;color:var(--oro)">Castellano</a></nav>
+<h1 id="the-cartridge">The cartridge</h1>
+<p>Sixteen kilobytes in the MSX&#x27;s page 1, from 0x4000 to 0x7FFF. The game takes up 8,115 bytes: from 0x5FB3 onwards there are 8,269 bytes of 0xFF in a row, chip padding that no instruction ever reads.</p>
+<h2 id="the-sixteen-header-bytes">The sixteen header bytes</h2>
+<pre><code>41 42 5F 40 00 00 00 00 00 00 00 00 00 00 00 00
+A  B  INIT=0x405F</code></pre>
+<p><code>AB</code> is the signature the BIOS looks for at boot, and behind it come four pointers. This cartridge declares only the first one, INIT; the other three — STATEMENT, DEVICE and TEXT — are zero.</p>
+<h2 id="what-init-leaves-set-up">What INIT leaves set up</h2>
+<p>0x405F does this, in order:</p>
+<ol><li>Installs <code>jp 0x4034</code> in the <b>H.KEYI</b> hook (0xFD9A), the one the BIOS calls on every interrupt.</li><li>Puts the stack at 0xE400 and clears the 4 KB from 0xE000 to 0xEFFF.</li><li>Programs the eight VDP registers and clears the 16 KB of VRAM.</li><li>Loads the four sets of artwork: the Konami logo, the table tiles, the font and the big title lettering.</li><li>Drops into <code>jr $</code> (0x409E) and <b>never comes out</b>.</li></ol>
+<p>From then on the main thread does nothing. The whole game runs inside the interrupt, which is the usual arrangement in Konami cartridges of this period.</p>
+<h2 id="the-screen">The screen</h2>
+<p>SCREEN 2, with the register table at 0x46BE:</p>
+<table><tr><th>table</th><th>address</th></tr><tr><td>names</td><td>0x3800</td></tr><tr><td>patterns</td><td>0x2000, in three thirds of 0x800</td></tr><tr><td>colours</td><td>0x0000, in three thirds as well</td></tr><tr><td>sprite attributes</td><td>0x3B00</td></tr><tr><td>sprite patterns</td><td>0x1800, 16×16</td></tr></table>
+<p>In SCREEN 2 the character generator is three independent tables, one per third of the screen, which is why nearly every load in the cartridge repeats the same copy three times adding 0x800. The exception is the big title lettering (0x5766), loaded into the first third only: that is where its two rows fall.</p>
+<h2 id="the-two-drawing-interpreters">The two drawing interpreters</h2>
+<p>Almost nothing is copied raw. There are two formats, and both turn up all over the cartridge.</p>
+<p><b>Format A</b>, read by 0x472E: two destination bytes in VRAM and then the tile numbers, with 0xFE to change destination and 0xFF to finish. Every text label uses it.</p>
+<p>It has a nice touch: the same list serves to draw and to erase. Entering at 0x472A instead of 0x472E, the only difference is that C holds 0x00 rather than 0xFF, and down in the loop there is an <code>and c</code> that turns every tile into a zero. The menu&#x27;s blinking is the two entry points of one routine over one list.</p>
+<p><b>Format B</b>, read by 0x4969: a stream of commands where bit 7 separates the two cases. With the bit set, the low seven say how many literal bytes follow; without it, how many times the next byte repeats. 0x00 closes the block and 0xFF means another destination follows. The Konami logo, the table colours and the whole table plan are compressed with it.</p>
+<h2 id="the-letters-are-its-own">The letters are its own</h2>
+<p>The 48 glyphs at 0x4136 are loaded into tiles 0x30 to 0x5F, and those numbers are exactly the ASCII codes of the characters they draw: the digits, a few symbols and the capitals.</p>
+<p><img src="imagenes/fuente.png" alt="The font"></p>
+<p>That is why the cartridge&#x27;s text lists spell the words out literally, in ASCII, with no conversion table in between. In the slot where ASCII has the backslash, the bracket and the underscores (0x5C to 0x5F) sit four drawings of its own: the two menu cursor tiles, a diamond and a filled ball, which are the ones that draw the goes and the spare balls on the scoreboard.</p>
+<h2 id="the-table-artwork">The table artwork</h2>
+<p><img src="imagenes/tiles.png" alt="The table tiles"></p>
+<p>The 59 table tiles are copied verbatim from 0x4A70, but their colours come compressed separately at 0x4C40. And there is a deliberate overlap there: <b>the first eight bytes of the colour block are also the last eight of the pattern copy</b>. Konami spliced the two tables to save eight bytes.</p>
+<p>There is a second overlap, and a stranger one. The sprite patterns are copied from 0x4B30, which sits inside the table tiles: <b>the balls and the cloth drawings are the same bytes read two ways</b>.</p>
+<p><img src="imagenes/sprites.png" alt="The sprites"></p>
+<p>288 bytes are copied, enough for nine 16×16 sprites, but only eight are real drawings: the cue ball, the six numbered ones and the aiming dot. The ninth overruns the end and lands on the table&#x27;s compressed colours. Nothing uses it.</p>
+<h2 id="the-table-plan">The table plan</h2>
+<p>The table is not stored as a screen of 768 tiles. At 0x4C59 there is a strip of groups, and each group is a number followed by a format B block: the number says how many consecutive rows carry that same drawing. The routine that unrolls it (0x4A39) draws the block and steps down 32 bytes at a time from row 7, reloading the pointer on each pass because the interpreter leaves it at the end. A zero closes the plan.</p>
+<p>Seven groups covering sixteen rows, from 7 to 22, in 79 bytes.</p>
+<h2 id="the-mark-that-is-not-there">The mark that is not there</h2>
+<p>Manuel Pazos found that Konami cartridges of this period hide their RC-7xx catalogue number and the game&#x27;s title in katakana at the end of the ROM. This one does not: there is not a single <code>RC-7</code> in ASCII in the 16 KB, and the end of the chip is 0xFF all the way.</p>
+<p>The RC-706 this cartridge is known by comes from the catalogue, not from the binary.</p>
+<footer><p><em>Konami's Billiards</em> was published by Konami for the MSX; its catalogue number is RC-706 and it is 16 KB. All rights in the game remain with their holders. This is preservation, study and documentation work.</p></footer></div>

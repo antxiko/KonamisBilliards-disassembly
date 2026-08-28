@@ -1,0 +1,124 @@
+<title>El código — Konami&#x27;s Billiards (1984)</title>
+<style>
+:root{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;--linea:#23262e;
+  --rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+@media (prefers-color-scheme:light){:root{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;
+  --panel:#f7f6f2;--linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}}
+:root[data-theme="dark"]{--tinta:#cfd0d4;--suave:#83868f;--fondo:#000;--panel:#0c0e13;
+  --linea:#23262e;--rojo:#ff897d;--cyan:#65dbef;--verde:#3eb849;--oro:#ded087}
+:root[data-theme="light"]{--tinta:#191a1e;--suave:#5a5d66;--fondo:#e9e7e1;--panel:#f7f6f2;
+  --linea:#d0cdc5;--rojo:#b23f34;--cyan:#1c6b7c;--verde:#2b7734;--oro:#8a7420}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);padding:0 1.25rem 6rem;
+  font:15px/1.7 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.w{max-width:1120px;margin:0 auto}
+.n{max-width:68ch}
+h1,h2,h3,h4{font-weight:400;text-wrap:balance}
+a{color:var(--cyan)}
+img{image-rendering:pixelated;max-width:100%;height:auto;display:block}
+header.top{display:flex;flex-direction:column;align-items:center;gap:1.5rem;
+  padding:4rem 0 2rem;text-align:center}
+header.top img{width:min(100%,642px)}
+.claim{max-width:60ch;color:var(--suave);font-size:1.05rem}
+.claim b{color:var(--tinta);font-weight:400}
+.ficha{display:flex;flex-wrap:wrap;justify-content:center;gap:0 1.5rem;width:100%;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--suave);
+  border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);padding:.85rem 0}
+.ficha b{color:var(--rojo);font-weight:400}
+nav{display:flex;flex-wrap:wrap;gap:1.25rem;justify-content:center;padding:1.25rem 0;
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+nav a{color:var(--suave);text-decoration:none;border-bottom:1px solid transparent}
+nav a:hover,nav a:focus{color:var(--tinta);border-bottom-color:var(--rojo)}
+nav.docs{border-top:1px solid var(--linea);border-bottom:1px solid var(--linea);
+  margin-bottom:1rem}
+section{margin-top:4.5rem;scroll-margin-top:1rem}
+section>h2{font-size:1rem;letter-spacing:.1em;text-transform:uppercase;
+  border-left:3px solid var(--rojo);padding-left:.9rem;margin:0 0 1.5rem}
+.cifras{display:grid;gap:1px;background:var(--linea);border:1px solid var(--linea);
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.cifra{background:var(--panel);padding:1.1rem}
+.cifra b{display:block;font-size:1.7rem;color:var(--oro);font-weight:400;
+  font-variant-numeric:tabular-nums;line-height:1.2}
+.cifra span{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--suave)}
+.hall{border-top:1px solid var(--linea);padding-top:1.75rem;margin-top:2.5rem}
+.hall:first-of-type{border-top:0;padding-top:0;margin-top:0}
+.hall h3{margin:0 0 .75rem;font-size:1.15rem;color:var(--rojo)}
+.hall h4{color:var(--oro);margin:1.5rem 0 .5rem;font-size:.95rem}
+.hall p{margin:0 0 1rem}
+pre.asm{background:var(--panel);border-left:2px solid var(--verde);margin:1.25rem 0;
+  padding:1rem 1.1rem;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--tinta)}
+.par{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media(min-width:820px){.par{grid-template-columns:1fr 1fr}}
+.par figure{margin:0}
+table{border-collapse:collapse;width:100%;margin:1.25rem 0;font-size:13px;display:block;
+  overflow-x:auto}
+th,td{text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--linea)}
+th{color:var(--suave);font-weight:400;font-size:11px;letter-spacing:.07em;text-transform:uppercase}
+td.num{font-variant-numeric:tabular-nums;color:var(--oro)}
+.nivel{margin-top:2rem}
+.nivel h3{margin:0 0 .9rem;font-size:.95rem;letter-spacing:.06em;text-transform:uppercase}
+.nivel em{color:var(--cyan);font-style:normal}
+.sep{color:var(--suave);margin:0 .6rem}
+.rejilla{display:grid;gap:.9rem;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.rejilla figure{margin:0;background:var(--panel);box-shadow:0 0 0 1px var(--linea)}
+.rejilla figcaption{display:flex;justify-content:space-between;padding:.45rem .65rem;
+  font-size:11px;color:var(--suave);border-top:1px solid var(--linea)}
+.dir{font-variant-numeric:tabular-nums;color:var(--verde)}
+footer{margin-top:5rem;padding-top:1.5rem;border-top:1px solid var(--linea);
+  color:var(--suave);font-size:12px}
+
+/* Aviso de trabajo en curso: tiene que verse antes que las cifras, porque un
+   100% mal leido hace mas dano que no ponerlo. */
+.aviso{background:#3a2a10;border-left:3px solid var(--oro);margin:1.5rem auto;
+  padding:1rem 1.2rem;max-width:900px;border-radius:4px}
+.aviso p{margin:0;color:var(--tinta);font-size:15px;line-height:1.65}
+.galeria{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:1.5rem;margin:1.5rem 0}
+.galeria figure{margin:0}
+.galeria img{width:100%;height:auto;image-rendering:pixelated;
+  border:1px solid var(--linea);border-radius:3px}
+.galeria figcaption{color:var(--suave);font-size:13px;margin-top:.5rem}
+audio{display:block;width:100%;max-width:640px;margin:.75rem 0 1.5rem}
+</style>
+<div class="w"><nav class="top"><a href="index.html">Portada</a><a href="EMPEZAR.html">Empezar</a><a href="EL-JUEGO.html">El juego</a><a href="EL-CARTUCHO.html">El cartucho</a><a href="EL-CODIGO.html" style=color:var(--tinta)>El código</a><a href="HALLAZGOS.html">Hallazgos</a><a href="PREGUNTAS-ABIERTAS.html">Preguntas abiertas</a><a href="../THE-CODE.html" style="margin-left:auto;color:var(--oro)">English</a></nav>
+<h1 id="el-codigo">El código</h1>
+<p>5.343 bytes de código y 11.041 de datos. El hilo principal está parado en un <code>jr $</code> desde el arranque, así que todo lo que sigue pasa dentro de la interrupción del VDP, cincuenta veces por segundo.</p>
+<h2 id="la-interrupcion">La interrupción</h2>
+<p>0x4034 hace cuatro cosas en este orden: reconoce el VDP —que es lo que baja la señal—, da un paso al reproductor de sonido, mira el cerrojo de 0xE005 y, si está libre, lee los mandos y corre un paso del juego.</p>
+<p>El cerrojo importa. Antes de meterse en el paso del juego, la rutina hace <code>ei</code>: <b>abre las interrupciones mientras trabaja</b>. Si el paso se pasa de cuadro —y la física de siete bolas se pasa— la interrupción siguiente entra, ve el cerrojo echado y se marcha sin hacer nada más que atender al sonido. La música no se entrecorta aunque el juego vaya justo.</p>
+<h2 id="dieciseis-estados-y-una-tabla-que-no-tiene-puntero">Dieciséis estados y una tabla que no tiene puntero</h2>
+<p>El paso del juego (0x4337) incrementa el contador de cuadros y despacha por 0xE000, el estado, que va de 0 a 15.</p>
+<p>El despachador (0x40A0) no recibe la dirección de la tabla. Hace <code>pop hl</code> para quedarse con <b>su propia dirección de retorno</b> y la usa de base, así que la tabla de dieciséis palabras va pegada justo detrás del <code>call</code> que lo invoca, y no se vuelve nunca a él. Termina en <code>jp (hl)</code>.</p>
+<p>Hay tres tablas así en el cartucho: la de los dieciséis estados detrás del <code>call</code> de 0x434D, la de las tres fases del recuento detrás del de 0x5ACA y la de los cuatro pasos de la demostración detrás del de 0x5EB6.</p>
+<p>Los estados hacen lo que se espera: el 0 al 7 son la pantalla del título y el menú, el 8 confirma la selección, el 9 saca bola, el 10 monta la mesa, el 11 es la tacada, el 12 la decide, el 13 cambia de jugador, el 14 espera tras el GAME OVER y el 15 celebra la mesa limpia. El estado 3 es un paso muerto: su entrada en la tabla apunta a la instrucción que solo incrementa el estado.</p>
+<h2 id="el-registro-de-una-bola">El registro de una bola</h2>
+<p>La mesa son ocho registros de dieciséis bytes desde 0xE100:</p>
+<table><tr><th>byte</th><th>qué es</th></tr><tr><td>+0</td><td>0xFF mientras la bola sigue en el paño</td></tr><tr><td>+1</td><td>la energía que le queda; a cero, está parada</td></tr><tr><td>+2</td><td>el ángulo con el que va</td></tr><tr><td>+3 y +4</td><td>la Y en 16 bits, con la parte entera en el +4</td></tr><tr><td>+5 y +6</td><td>la X en 16 bits, con la parte entera en el +6</td></tr><tr><td>+7 y +8</td><td>la velocidad Y, con signo</td></tr><tr><td>+9 y +10</td><td>la velocidad X</td></tr><tr><td>+11 y +12</td><td>número de patrón de sprite y color</td></tr><tr><td>+13 y +14</td><td>el frenado, repartido por componentes</td></tr><tr><td>+15</td><td>con qué bola chocó la última vez</td></tr></table>
+<p>La posición está en punto fijo de 8.8, y el byte entero cae justo donde el volcado de sprites lo va a leer: mover una bola es sumar dos palabras de 16 bits a otras dos, y el sprite se entera solo.</p>
+<p>Los cuatro bytes que el VDP necesita —el +4, el +6, el +11 y el +12— los vuelca 0x466D de un tirón por el puerto de datos, aprovechando que el VDP autoincrementa. Y el orden de los dos grupos de cuatro bolas se alterna con el bit 0 del contador de cuadros, que es el truco de siempre contra el límite de sprites por línea del TMS9918.</p>
+<h2 id="la-fisica-tres-rutinas">La física, tres rutinas</h2>
+<p><b>Mover</b> (0x4E6B) suma la velocidad a la posición y mira si se ha salido: la mesa va de X=0x14 a X=0xD8 y de Y=0x3E a Y=0xA1. Si se ha salido por donde hay banda, la refleja —posición menos el doble de lo que se pasó— y le da la vuelta a esa componente de la velocidad. Si se ha salido por donde hay tronera, va a la rutina que la emboca.</p>
+<p><b>Chocar</b> (0x4F25) recorre las otras seis bolas con una criba barata: si las dos coordenadas se diferencian en menos de doce píxeles, hay contacto posible. Entonces 0x4F63 mide la distancia de verdad, con los dos cuadrados sumados comparados contra 0x9000, que a esa escala son los mismos doce píxeles.</p>
+<p><b>Frenar</b> (0x53DD) entra una vez de cada ocho cuadros: quita 3 a la energía y le suma a cada componente de la velocidad el frenado del +13 y el +14, siempre con el signo contrario al del movimiento. Como esos dos bytes son las componentes del vector unidad escaladas a 24/256, la bola frena en su propia línea y no se tuerce al pararse.</p>
+<h2 id="como-se-reparte-un-choque">Cómo se reparte un choque</h2>
+<p>Si las dos bolas ruedan, el cartucho <b>se intercambia las velocidades</b> y ya está (0x5192): el choque frontal entre masas iguales, resuelto sin una sola multiplicación.</p>
+<p>Si una estaba parada, entonces sí hay cuenta. Se mide el ángulo de la recta que une los dos centros, se compara con el ángulo con el que llegaba la bola y esa diferencia —saturada a 0x3C, casi un ángulo recto— entra en la tabla de cosenos: la parte del movimiento que cae sobre la línea de centros se cede, la perpendicular se queda. La que golpea sale por la perpendicular, y para eso las dos componentes se cruzan al escribirlas, que es girar el vector noventa grados sin tocarlo.</p>
+<h2 id="direcciones-sin-senos-ni-cosenos">Direcciones sin senos ni cosenos</h2>
+<p>Una dirección no se guarda como un ángulo, sino como una <b>pendiente dentro de un octante</b> más dos bits de espejo. La rutina de 0x5430 coge las dos componentes de la velocidad, se queda con los valores absolutos, apunta en 0xE1A2 hacia dónde iba cada una, divide las dos entre 32 y compara: la mayor es el divisor y la menor el dividendo, así que el cociente cae siempre entre 0 y 255 y basta con tablas de 256 entradas.</p>
+<p>Hay cuatro, todas comprobadas contra su fórmula con error máximo de 1:</p>
+<table><tr><th>tabla</th><th>qué guarda</th></tr><tr><td>0x539C</td><td>65 valores de 255·cos, para el reparto del choque</td></tr><tr><td>0x54E6</td><td>256 valores de 255·sin(atan(p))</td></tr><tr><td>0x55E6</td><td>256 valores de 255·cos(atan(p))</td></tr><tr><td>0x56E6</td><td>64 valores de atan, en 1/256 de vuelta</td></tr></table>
+<p>La de 0x539C se lee dos veces, con el índice y con su complemento a 0x40, y de ahí salen el seno y el coseno con una sola tabla. Y al montar el ángulo final, los dos bits de espejo se combinan con la <b>paridad</b>: un <code>and a</code> sobre 0xE1A2 y un <code>jp pe</code>, porque negar el ángulo hace falta cuando está reflejado uno solo de los dos ejes.</p>
+<h2 id="una-raiz-cuadrada-de-doce-bytes">Una raíz cuadrada de doce bytes</h2>
+<p>0x5376 saca la raíz de HL restando impares: 1, luego 0, luego 2 y 2, luego 4 y 4… y devuelve cuántas vueltas aguantó. Pasada por los 65.536 valores posibles, devuelve exactamente <code>round(sqrt(n))</code>, la raíz redondeada al entero más cercano y no la truncada.</p>
+<p>Se usa para la distancia entre la bola blanca y la mira, que es lo que divide a las dos componentes del tiro para dejarlas en un vector unidad. Medio píxel ahí se nota en la dirección.</p>
+<h2 id="el-reproductor-de-sonido">El reproductor de sonido</h2>
+<p>Tres canales de nueve bytes desde 0xE010, cada uno con su contador, su puntero a la partitura y el número de sonido que está tocando, que hace además de prioridad: un sonido nuevo solo entra si su número es mayor o igual que el que suena.</p>
+<p>Lo que se pide no es un canal sino un <b>sonido</b>, y según su número se arrancan uno, dos o tres canales a la vez con punteros consecutivos de la tabla de 0x5D1C. Por debajo de 0x87 es un efecto de un canal; de 0x8A en adelante, música de tres.</p>
+<p>Las notas llevan la duración en el nibble alto y el semitono en el bajo, y el semitono 12 es un silencio. El divisor de frecuencia sale de la tabla de doce que hay en 0x5D08 y se dobla tantas veces como octavas haya que bajar. El volumen decae solo, por programa, comparando dos contadores.</p>
+<p>Y un detalle de los que gustan: el registro de volumen del canal sale de rotar C —que vale 1, 3 o 5— y sumarle 0x88. Da 8, 9 y 10, que son exactamente los tres registros de volumen del PSG.</p>
+<h2 id="cosas-que-estan-ahi-y-no-hacen-nada">Cosas que están ahí y no hacen nada</h2>
+<ul><li>0x5962 escribe <code>(ix+002h)</code> <b>dos veces seguidas con el mismo valor</b>. Tres bytes que no cambian nada.</li><li>En 0x4462 hay cuatro bytes (00 80 40 C0) que ninguna instrucción referencia, y la secuencia de su dirección no existe en toda la ROM. El código del menú salta por encima de ellos. Parecen una tabla abandonada.</li><li>El puntero número 0 de la tabla de sonidos no existe: sus dos bytes son las duraciones 44 y 84 de la tabla de arriba, empalmada con esta. Nadie pide el sonido 0.</li></ul>
+<h2 id="y-dos-que-si-hacen-y-son-las-mejores">Y dos que sí hacen, y son las mejores</h2>
+<p><code>push hl</code> seguido de <code>pop hl</code> aparece varias veces en las rutinas que escriben sprites y carteles (0x59E8, 0x5A01, 0x5B66). No mueven nada: son veintiún ciclos de reloj de espera para que al VDP le dé tiempo entre dos escrituras consecutivas.</p>
+<p>Y en 0x5488 hay un <code>ld a,r</code>. El registro R es el contador de refresco de la memoria dinámica, que va cambiando solo, así que sirve de número al azar sin gastar nada. El cartucho se queda con su bit de abajo y con él le da la vuelta al bit 0 de la pendiente recién calculada: cada dirección sale con una unidad de ruido encima.</p>
+<footer><p><em>Konami's Billiards</em> lo publico Konami para MSX; su numero de catalogo es RC-706 y son 16 KB. Todos los derechos sobre el juego siguen siendo de sus titulares. Este trabajo es de preservacion, estudio y documentacion.</p></footer></div>

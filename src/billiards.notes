@@ -196,7 +196,7 @@ L 0x47F1 refresca_el_marcador  Pinta los rotulos del marcador y los numeros: 1P,
 L 0x4833 pinta_el_numero_de_fase  Las dos cifras BCD de 0xE051 en la fila 0 columnas 28-29, detras del rotulo STAGE. El record lo pinta 0x4815, que entra en el mismo bucle con tres bytes en vez de uno.
 L 0x4888 pinta_ball_y_reserva  El rotulo BALL de 0x48AC y el numero de bolas de reserva (0xE050)
 L 0x48B0 arranca_el_modo_de_juego  No salta a ningun sitio: solo pone a cero 0xE1F0, el indice del despachador del modulo de la mesa, para que la partida empiece por su primer submodo. Quien salta de verdad al modulo es 0x48B5, y lo llama el estado 7.
-L 0x48B8 despliega_el_logo_grande  Pinta el KONAMIS de la lista 0x432C y suelta una letra del BILLIARDS verde por llamada (tiles 0xC1+, contador 0xE00A); devuelve acarreo mientras queden
+L 0x48B8 despliega_el_logo_grande  Pinta el KONAMIS de la lista 0x432C y suelta una COLUMNA del BILLIARDS verde por llamada, contando en 0xE00A. Son quince columnas de dos tiles cada una -0xC1 a 0xCF arriba y 0xD0 a 0xDE abajo-, no quince letras: las letras del rotulo tienen anchuras distintas y las anchas se llevan dos columnas. Devuelve acarreo mientras queden.
 L 0x48E7 pinta_el_cursor_del_menu  Elige la lista 0x48F6 o 0x4900 segun 0xE006
 L 0x490A carga_los_tiles_del_logo  Descomprime 0x498D en los patrones 0x2008 de los tres tercios y les pone el color blanco
 L 0x491E sube_el_logo_konami  Pinta el logotipo (tiles 0x01-0x1A, filas de 3+11+12) una fila mas arriba y borra la que deja atras; cuenta en 0xE00A
@@ -591,13 +591,13 @@ C 0x48b1 no salta al modulo de la mesa: solo rearma su despachador al primer sub
 
 C 0x48b8 el KONAMI'S de arriba se repinta entero en cada llamada
 C 0x48be 0xE00A cuenta las letras ya soltadas
-C 0x48c3 quince letras y se acabo
+C 0x48c3 quince columnas y se acabo
 C 0x48c7 0x38A9 = fila 5, columna 9
 C 0x48ca guarda el indice, que A va a cambiar
 C 0x48cb la columna avanza con la letra
 C 0x48ce los tiles de la mitad de ARRIBA empiezan en 0xC1
 C 0x48d3 una fila mas abajo
-C 0x48d8 y quince mas alla estan las mitades de ABAJO: cada letra son dos tiles
+C 0x48d8 y quince mas alla estan las mitades de ABAJO: cada columna son dos tiles
 C 0x48dd acarreo: aun quedan letras por soltar
 C 0x48df la ultima trae detras el copyright
 C 0x48e5 y limpia el acarreo: aqui termina la animacion
@@ -664,9 +664,9 @@ C 0x4a56 las filas repetidas
 C 0x4a58 al salir, HL ya esta en el numero del grupo siguiente
 C 0x4a5a 0x1800: los patrones de sprite
 C 0x4a5d los mismos bytes que ya se copiaron como tiles de la mesa
-C 0x4a60 288 bytes: nueve sprites de 16x16
+C 0x4a60 288 bytes, que dan para nueve sprites de 16x16, pero solo ocho son dibujos: el noveno cae sobre los colores comprimidos de la mesa y no lo usa nadie
 C 0x4a66 0x3B1C es la Y del sprite 7, el octavo
-C 0x4a69 y con 0xD0 el VDP deja de dibujar ahi: en la mesa solo hay siete bolas
+C 0x4a69 y con 0xD0 el VDP corta ahi la lista, pero solo hasta el refresco siguiente: 0x463F vuelve a escribir los ocho
 C 0x4caa 0xE19F: hay tiro en marcha
 C 0x4cad la Y de la bola blanca
 C 0x4cb0 la Y de la OCTAVA entrada, que no es una bola: es el punto al que se apunta
@@ -1532,3 +1532,207 @@ B 0x4010 todo se para. 0xE1F9 = por que eje se puede mover la mira, y 0xE1FA por
 B 0x4010 donde la lleva el attract.
 B 0x4010 0xE1FB = si la siguiente entrada lleva cortina o no.
 B 0x4010 0xE201 = el submodo del estado 8. 0xE202 = el reloj de abandono.
+# --- Tanda 14: lo que destaparon los dibujos ---
+C 0x463f la mira tambien es un sprite: los dos grupos de cuatro cubren las ocho entradas
+# --- Tanda 15: el ruido del registro R ---
+C 0x5488 el registro de refresco de la RAM, que va cambiando solo: sirve de numero al azar
+C 0x548a se queda con su bit de abajo
+C 0x548c y con el le da la vuelta al bit 0 de la pendiente: cada tiro sale con una unidad de ruido
+# --- Tanda 16: bautizar las 196 etiquetas que quedaban con nombre automatico ---
+
+L 0x405A sale_de_la_interrupcion  La salida comun: reconoce el VDP otra vez y abre.
+L 0x409E bucle_eterno  Donde el hilo principal se queda para siempre.
+L 0x40D1 fija_los_jugadores_y_confirma
+L 0x40DE alterna_la_opcion_del_menu
+L 0x40E8 lee_el_mando_del_que_juega  La entrada de las partidas de dos: el puerto sale del turno.
+L 0x40F2 lee_joystick_y_teclado
+L 0x410F lee_las_dos_filas_del_teclado
+L 0x43E3 cortina_y_vuelta_al_estado_0
+L 0x440B suelta_el_logo_sin_parar
+L 0x4416 pinta_los_rotulos_del_menu
+L 0x4441 pasa_al_submodo_siguiente
+L 0x4446 parpadea_la_opcion_elegida
+L 0x4459 pinta_o_borra_la_opcion
+L 0x4466 submodo_2_empieza_la_partida
+L 0x4474 gasta_la_bandera_de_cortina
+L 0x447D gasta_bola_y_avisa_del_turno
+L 0x44A1 fija_la_espera_de_entrada
+L 0x44AC borra_el_aviso_y_coloca
+L 0x44FB cortina_del_game_over
+L 0x4512 decide_si_sigue_o_cambia
+L 0x4546 intercambia_un_byte
+L 0x456B fija_el_estado_y_pasa
+L 0x4581 vuelve_a_sacar_bola
+L 0x458A pasa_con_este_contador
+L 0x458D solo_pasa_de_estado
+L 0x4595 pinta_el_digito_del_jugador
+L 0x45E6 borra_los_siete_de_e1d7
+L 0x45F6 coloca_una_bola
+L 0x4642 refresca_sin_tocar_la_fisica
+L 0x465A vuelca_los_dos_grupos
+L 0x4668 vuelca_el_segundo_grupo
+L 0x4675 vuelca_los_cuatro_bytes_de_una_bola
+L 0x46B4 escribe_un_registro_del_vdp
+L 0x46E0 bucle_de_relleno
+L 0x4703 segunda_mitad_del_paso_de_cortina
+L 0x4715 borra_una_columna
+L 0x4730 lee_el_destino_de_la_lista
+L 0x4734 lee_el_tile_siguiente
+L 0x475A una_pasada_de_copia
+L 0x476F una_pasada_de_relleno
+L 0x478E suma_las_tres_cifras_bcd
+L 0x47B0 sin_acarreo_al_tercer_byte
+L 0x47B1 mira_si_toca_bola_extra
+L 0x47C0 da_la_bola_extra
+L 0x47D2 sigue_sin_bola_extra
+L 0x47D3 compara_con_el_record
+L 0x47E7 el_marcador_pasa_a_ser_record
+L 0x480C pinta_el_resto_del_marco
+L 0x481E pinta_el_marcador_del_turno
+L 0x482F tres_bytes_de_cifras
+L 0x486D mira_lo_que_hay_en_pantalla
+L 0x4879 escribe_los_tres_tiles
+L 0x489F pinta_una_bola_de_reserva
+L 0x48A5 escribe_el_hueco_o_la_bola
+L 0x48B5 salta_al_modulo_de_la_mesa
+L 0x48DF remata_con_el_copyright
+L 0x48F3 pinta_la_lista_del_cursor
+L 0x4944 escribe_un_tile_de_la_tira
+L 0x4955 una_pasada_por_tercio
+L 0x496C lee_la_orden_del_formato_b
+L 0x497B repite_el_byte
+L 0x4983 copia_los_literales
+L 0x4A40 lee_el_grupo_del_plano
+L 0x4A49 despliega_una_fila_de_la_mesa
+L 0x4A5A carga_los_sprites_y_corta_la_lista
+L 0x4CBA guarda_la_diferencia_de_y
+L 0x4CCA guarda_la_diferencia_de_x
+L 0x4CD4 eleva_dx_al_cuadrado
+L 0x4CE5 eleva_dy_al_cuadrado
+L 0x4D00 divide_la_componente_y
+L 0x4D13 guarda_la_componente_y
+L 0x4D24 divide_la_componente_x
+L 0x4D37 guarda_la_componente_x
+L 0x4D44 multiplica_la_x_por_la_fuerza
+L 0x4D52 multiplica_la_y_por_la_fuerza
+L 0x4D5C multiplica_la_energia
+L 0x4D8D limpia_el_mas_quince_de_cada_bola
+L 0x4D9A limpia_la_lista_de_embocadas
+L 0x4DB4 mueve_la_bola_siguiente
+L 0x4DCD resuelve_los_choques_de_la_siguiente
+L 0x4DEC junta_la_energia_de_todas
+L 0x4E0E mira_si_hay_recuento
+L 0x4E32 pasa_el_turno_si_hay_a_quien
+L 0x4E47 arranca_el_recuento
+L 0x4E5A junta_el_mas_cero_de_las_de_color
+L 0x4EB9 refleja_la_x_contra_la_banda
+L 0x4EBD resta_el_doble_a_la_x
+L 0x4ECE mira_las_bandas_de_arriba_y_abajo
+L 0x4EF7 refleja_la_y_contra_la_banda
+L 0x4EFB resta_el_doble_a_la_y
+L 0x4F05 rehace_el_angulo_tras_el_rebote
+L 0x4F35 compara_con_la_bola_siguiente
+L 0x4F41 criba_por_la_distancia_en_y
+L 0x4F4B criba_por_la_distancia_en_x
+L 0x4F58 devuelve_de_al_mas_cuatro
+L 0x4F5A pasa_a_la_bola_siguiente
+L 0x4FD0 resuelve_un_contacto_nuevo
+L 0x4FEB reparte_contra_una_bola_parada
+L 0x5015 satura_el_desvio
+L 0x501B reparte_la_energia_por_el_coseno
+L 0x5100 guarda_la_componente_y_del_golpeado
+L 0x51B3 intercambia_n_bytes
+L 0x5246 reinicia_el_reloj_de_abandono
+L 0x5248 apunta_y_mueve_la_mira
+L 0x526E gasta_el_contador_de_pulsacion
+L 0x5279 baja_el_contador_sin_pasar_de_cero
+L 0x528F mira_la_tecla_de_arriba
+L 0x5294 mira_la_tecla_de_abajo
+L 0x5299 mira_la_tecla_de_la_izquierda
+L 0x529E mira_la_tecla_de_la_derecha
+L 0x52A3 aplica_el_movimiento_a_la_mira
+L 0x52BA mira_el_tope_derecho
+L 0x52C2 guarda_la_x_de_la_mira
+L 0x52C7 mueve_la_mira_en_vertical
+L 0x52CD mira_el_tope_de_abajo
+L 0x52D5 guarda_la_y_de_la_mira
+L 0x52DA cambia_de_eje_sin_moverse
+L 0x52FF pinta_un_rombo_de_intento
+L 0x530B borra_los_huecos_que_sobran
+L 0x532B guarda_la_fuerza_y_reparte
+L 0x5336 pinta_un_trozo_de_barra
+L 0x533E borra_lo_que_sobra_de_barra
+L 0x534B bucle_de_multiplicacion
+L 0x534F cierra_el_bucle_de_multiplicacion
+L 0x535B bucle_de_division
+L 0x5369 deshace_la_resta
+L 0x536A cierra_el_bucle_de_division
+L 0x537A resta_el_impar_siguiente
+L 0x5389 lee_las_dos_entradas_de_la_tabla
+L 0x53E3 frena_sin_esperar  La entrada que se salta la espera de ocho cuadros: la usa el rebote.
+L 0x53ED aplica_el_frenado_a_las_dos
+L 0x54AE lee_la_componente_menor
+L 0x54C0 lee_el_angulo_del_octante
+L 0x54D4 combina_los_dos_espejos
+L 0x54DB monta_el_angulo_final
+L 0x5886 tramos_de_la_mitad_de_abajo
+L 0x589F tramos_de_la_banda_derecha
+L 0x58B9 tramos_de_la_banda_de_arriba
+L 0x58E8 mira_la_pared_derecha_de_la_boquilla
+L 0x58F0 rebota_en_la_pared_de_la_boquilla
+L 0x599B saca_la_bola_de_la_mesa
+L 0x59AD busca_hueco_en_la_lista
+L 0x59B4 mira_si_la_que_cayo_es_la_blanca
+L 0x59BF apunta_la_bola_en_las_dos_listas
+L 0x59C1 busca_hueco_en_la_lista_de_arriba
+L 0x59D5 pinta_una_bola_cobrada
+L 0x5A17 borra_un_bloque_de_dos_por_dos
+L 0x5A43 busca_la_bola_en_la_lista_de_arriba
+L 0x5A4B borra_el_resto_de_la_lista
+L 0x5A53 devuelve_una_bola
+L 0x5A77 devuelve_la_blanca_a_su_sitio
+L 0x5A97 vuelve_a_comprobar_el_hueco
+L 0x5A9C recorre_las_bolas_del_pano
+L 0x5A9F compara_con_una_bola
+L 0x5AAB criba_el_hueco_por_la_y
+L 0x5AB5 criba_el_hueco_por_la_x
+L 0x5AB9 devuelve_de_al_mas_cuatro_del_hueco
+L 0x5ABB pasa_a_la_bola_siguiente_del_hueco
+L 0x5AF0 saca_el_numero_de_la_bola
+L 0x5AFF dobla_por_cada_bola_seguida
+L 0x5B06 suma_los_puntos_y_pinta_el_cartel
+L 0x5B3D pinta_la_unidad_del_multiplicador
+L 0x5B56 pinta_las_cifras_de_los_puntos
+L 0x5BB1 pinta_el_multiplicador_vigente
+L 0x5BCA pide_un_sonido_sin_mirar_la_partida  La entrada que se salta la comprobacion del bit 6: la usan el arranque y el choque de bolas.
+L 0x5BDA un_solo_canal
+L 0x5BDE mira_la_prioridad
+L 0x5BEB arma_los_canales
+L 0x5C04 no_entra_el_sonido
+L 0x5C1A paso_del_canal_siguiente
+L 0x5C53 lee_el_tono_y_el_volumen
+L 0x5C97 adelanta_la_envolvente
+L 0x5C9A baja_el_volumen_una_unidad
+L 0x5CA3 escribe_el_volumen
+L 0x5CBF lee_la_duracion_y_el_semitono
+L 0x5CE3 arma_la_nota
+L 0x5CF7 baja_una_octava
+L 0x5EC1 attract_prepara_la_partida
+L 0x5ECA attract_corre_la_cortina
+L 0x5ED3 attract_coloca_las_bolas
+L 0x5EE2 attract_pasa_de_submodo
+L 0x5EE6 attract_vuelve_por_el_estado_7
+L 0x5EF5 busca_bola_que_siga_en_la_mesa
+L 0x5F24 escribe_la_tecla_fingida
+L 0x5F26 corre_la_tacada_del_attract
+L 0x5F35 cierra_el_attract
+L 0x5F3F no_pulsa_nada_este_cuadro
+L 0x5F42 mira_si_la_mira_esta_en_una_esquina
+L 0x5F4C mira_el_tope_izquierdo
+L 0x5F51 mira_el_tope_de_arriba
+L 0x5F59 mira_el_tope_de_abajo_de_la_mira
+L 0x5F5E decide_si_cambia_de_direccion
+L 0x5F69 saca_la_direccion_de_la_mira
+L 0x5F7D divide_y_guarda_la_diferencia_de_y
+L 0x5F93 divide_y_guarda_la_diferencia_de_x
+L 0x5FA7 un_desplazamiento_de_24_bits
