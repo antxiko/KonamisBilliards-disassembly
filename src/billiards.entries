@@ -1,0 +1,43 @@
+# Puntos de entrada de Konami's Billiards (RC-706, 1984). ROM de 16 KB.
+#
+# El cartucho ocupa solo la pagina 1 (0x4000-0x7FFF); el contenido real acaba
+# en 0x5FB2 y el resto es relleno 0xFF.
+0x405F   # INIT, declarado en la cabecera del cartucho (bytes 2-3: 5F 40)
+
+0x4034   # la rutina de interrupcion. INIT escribe `jp 0x4034` en el gancho
+         # H.KEYI (0xFD9A): `ld a,0C3h / ld (0FD9Ah),a / ld hl,4034h /
+         # ld (0FD9Bh),hl` en 0x4062-0x406C.
+
+# --- Destinos de las TRES tablas del despachador de 0x40A0. Termina en
+#     `jp (hl)`, asi que el trazador no puede alcanzarlos solo.
+
+# Tabla de 0x4350, 16 palabras. El indice es (0xE000), el estado del juego
+# (en 0x4345: `ld a,(0E000h) / cp 0Bh / push af / call nc,4858h / pop af /
+# call 40A0h`).
+0x4370   # estado 0
+0x4381   # estado 1
+0x4394   # estado 2
+0x458D   # estado 3
+0x43B3   # estado 4
+0x43C1   # estado 5
+0x43D0   # estado 6
+0x43DA   # estado 7
+0x442B   # estado 8
+0x4470   # estado 9
+0x44A5   # estado 10
+0x44BF   # estado 11
+0x44D3   # estado 12
+0x4526   # estado 13
+0x454E   # estado 14
+0x4570   # estado 15
+
+# Tabla de 0x5ACD, 3 palabras (call en 0x5ACA; el indice sale de 0xE1B0).
+0x5AD3
+0x5ADF
+0x5B73
+
+# Tabla de 0x5EB9, 4 palabras (call en 0x5EB6; el indice sale de 0xE1F0).
+0x5EC1
+0x5ECA
+0x5ED3
+0x5EEC

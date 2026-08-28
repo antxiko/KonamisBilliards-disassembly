@@ -1,0 +1,11 @@
+# Zonas que el trazador NO debe leer como codigo: las tablas de palabras que
+# van INCRUSTADAS DETRAS de un `call 0x40A0`.
+#
+# 0x40A0 no es un despachador normal: coge la direccion de retorno con `pop hl`
+# y la usa como base de la tabla, asi que los bytes que siguen al call son
+# datos y NO se vuelve a ellos (termina en `jp (hl)`).
+#     40A0: add a,a / pop hl / call 402Ah (HL+=A) / ld e,(hl) / inc hl /
+#           ld d,(hl) / ex de,hl / jp (hl)
+0x4350 0x4370   16 palabras (call en 0x434D); indice = (0xE000), el estado del juego
+0x5ACD 0x5AD3    3 palabras (call en 0x5ACA)
+0x5EB9 0x5EC1    4 palabras (call en 0x5EB6)

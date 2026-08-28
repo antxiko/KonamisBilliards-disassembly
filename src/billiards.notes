@@ -1,0 +1,217 @@
+# Anotaciones de Konami's Billiards (Konami, MSX1, cartucho RC-706).
+#
+# Cada linea va anclada a una direccion, asi que los comentarios sobreviven a
+# un retrazado. Directivas: L=etiqueta, C=comentario de linea, B=cabecera de
+# bloque, D=rango de datos, F=anchura de las filas de un bloque de datos. Todo
+# sale de leer el codigo que lo usa. Sin acentos a proposito.
+#
+# EL MAPA DE MEMORIA. Cartucho de 16 KB en la pagina 1 (0x4000-0x7FFF), pero
+# el contenido real acaba en 0x5FB2: el resto del chip es relleno 0xFF. La
+# RAM del juego empieza en 0xE000: INIT (0x405F) borra 0xE000-0xEFFF, pone la
+# pila en 0xE400, instala `jp 0x4034` en el gancho H.KEYI (0xFD9A) y se queda
+# en un `jr $` (0x409E): EL JUEGO ENTERO CORRE DENTRO DE LA INTERRUPCION,
+# como en el resto de la familia Konami de 1984.
+#
+# LA PANTALLA. SCREEN 2 con la tabla de registros de 0x46BE: nombres en
+# 0x3800, patrones en 0x2000 (tres tercios), colores en 0x0000, atributos de
+# sprites en 0x3B00 y patrones de sprites en 0x1800 (16x16).
+#
+# EL DESPACHADOR. 0x40A0 no salta a una tabla externa: coge la direccion de
+# retorno con `pop hl` y la usa como base, asi que la tabla va pegada detras
+# del `call` y no se vuelve a ella. Hay tres:
+#   0x4350  16 palabras, indice = (0xE000)   el estado del juego
+#   0x5ACD   3 palabras, indice = (0xE1B0)   la animacion del rotulo x N
+#   0x5EB9   4 palabras, indice = (0xE1F0)
+#
+# LOS DOS INTERPRETES DE PINTADO, el sello de la familia:
+#   FORMATO A - lo lee 0x4730 (entrada 0x472E pinta, 0x472A borra):
+#       [destino_VRAM:2] [tiles...] con 0xFE = viene otro destino, 0xFF = fin.
+#   FORMATO B - lo lee 0x4969 (con destino delante, entrada 0x4965):
+#       [ordenes...] con 0xFF = viene otro destino, 0x00 = fin; una orden con
+#       el bit 7 a 1 copia (n & 0x7F) bytes literales, y con el bit 7 a 0
+#       repite n veces el byte que sigue.
+# Los textos usan el propio codigo ASCII como numero de tile: la fuente de
+# 0x4136 se carga en los tiles 0x30-0x5F.
+#
+# ESTE CARTUCHO NO LLEVA LA MARCA OCULTA DE KONAMI (el RC-7xx y el titulo en
+# katakana al final de la ROM, que descubrio Manuel Pazos): no hay un solo
+# RC-7 en ASCII en los 16 KB. El RC-706 sale del catalogo, no del binario.
+
+# ---------------------------------------------------------------------------
+# Los bloques de datos
+# ---------------------------------------------------------------------------
+D 0x4000 0x4010 cabecera  Los dieciseis bytes que lee la BIOS al arrancar la maquina: AB, INIT=0x405F, y los otros tres punteros a cero. Este cartucho no declara STATEMENT, ni DEVICE, ni TEXT.
+F 0x4000 16
+
+D 0x4136 0x42B6 fuente  Los 48 glifos de 8 bytes que 0x4743 copia a VRAM 0x2180 en los tres tercios: son los tiles 0x30-0x5F, es decir, los caracteres ASCII "0"-"9", los simbolos y las mayusculas "A"-"Z", y por eso las listas de texto escriben ASCII tal cual. En el hueco de la barra, el corchete y los guiones (0x5C-0x5F) hay dibujos propios: los dos tiles del cursor del menu, un rombo y una bola rellena. Sus colores: blanco sobre transparente (el relleno 0xF0 que la misma rutina mete en 0x0180-0x02FF).
+F 0x4136 8
+
+# --- Las listas de texto del formato A (0x472E pinta, 0x472A borra) ---
+D 0x42B6 0x42CB rotulo_del_marcador  Lista formato A del marco del marcador: "1P" en la fila 0 columna 2, "HI" en la 12 y "STAGE" en la 22, cada uno con el tile 0x40 detras como separador. La pinta 0x47F1 al refrescar el marcador.
+D 0x42CB 0x42D1 rotulo_2p  Lista formato A: "2P" en la fila 1 columna 2. Solo se pinta si hay segundo jugador (bit 5 de 0xE002, comprobado en 0x47F7).
+D 0x42D1 0x42E0 rotulo_copyright  Lista formato A: "(c)KONAMI 1984" en la fila 8 (el tile 0x3A de la fuente es el simbolo del copyright). Lo pinta el titulo cuando el logo termina de desplegarse (0x48DF) o directamente al entrar en la pantalla (0x4410).
+D 0x42E0 0x42EE rotulo_play_select  Lista formato A: "PLAY SELECT" en la fila 13 (0x4416).
+D 0x42EE 0x42F9 rotulo_1_player  Lista formato A: "1 PLAYER" en la fila 16 (0x441C); el menu la parpadea borrandola y pintandola (0x4451 con las dos entradas del interprete).
+D 0x42F9 0x4305 rotulo_2_players  Lista formato A: "2 PLAYERS" en la fila 18 (0x4422 y 0x4456).
+D 0x4305 0x431B rotulo_game_over_y_player  Lista formato A con dos entradas: entera desde 0x4305 pinta "GAME OVER" en la fila 11 y "PLAYER" en la 9 (0x4503); entrando por 0x4314, solo el "PLAYER" de la fila 9 (0x448B, el aviso PLAYER 1/2 al cambiar el turno).
+D 0x431B 0x432C raya_y_software  Lista FORMATO B del titulo (la unica de texto en ese formato; la pinta 0x438D con 0x4965): doce tiles 0x1B seguidos en la fila 10 -la raya bajo el logo- y los ocho literales "SOFTWARE" en la fila 11.
+D 0x432C 0x4337 rotulo_konamis  Lista formato A: "KONAMI" mas el tile 0xC0 (el apostrofe) y la "S" en la fila 3: el "KONAMI'S" sobre el logo grande. La pinta 0x48B8 al arrancar la animacion del titulo.
+
+D 0x4350 0x4370 tabla_de_estados  Las dieciseis palabras del despachador de 0x40A0, pegadas detras del `call` de 0x434D. El indice es (0xE000), el estado del juego.
+F 0x4350 2
+
+D 0x4462 0x4466 datos_sin_dueno_4462  Cuatro bytes (00 80 40 C0) que ninguna instruccion del cartucho referencia: ni aparecen como operando inmediato en el codigo trazado, ni la secuencia de su direccion (62 44) existe en toda la ROM. El codigo del menu salta por encima (el `jr z` de 0x4432 cae en 0x4466). Parecen una tabla abandonada.
+
+D 0x45CC 0x45D0 valores_iniciales_de_la_partida  Los cuatro bytes que 0x45AF copia a 0xE050-0xE053 al empezar: BALL=3 (las bolas blancas de reserva del marcador), 0xE051=1, 0xE052=1 (el umbral en millares BCD de la siguiente bola extra) y 0xE053=2.
+F 0x45CC 4
+
+D 0x461F 0x463F posiciones_iniciales_de_las_bolas  Ocho registros de cuatro bytes (Y, X, numero de patron, color) que 0x45F1 reparte en los registros de bola de 0xE100 (dieciseis bytes por bola: el byte 0 a 0xFF, la Y en el +4, la X en el +6 y el par patron/color mas adentro): la bola blanca en Y=0x70 X=0x40 y el triangulo de bolas de colores (X=0x98, 0xA5, 0xB2), mas la octava entrada en Y=0x80 X=0xE1. Los patrones van de 4 en 4 (sprites de 16x16) y el color es el del palo de cada bola.
+F 0x461F 4
+
+D 0x46BE 0x46C6 registros_del_vdp  Los ocho valores que 0x46AD escribe en los registros 0-7 del VDP al arrancar: 02 E2 0E 7F 07 76 03 E4. Es SCREEN 2 con la tabla de nombres en 0x3800 (R2=0x0E), colores en 0x0000 (R3=0x7F), patrones en 0x2000 (R4=0x07), atributos de sprites en 0x3B00 (R5=0x76), patrones de sprites en 0x1800 (R6=0x03) y borde de color 4, el azul oscuro (R7=0xE4).
+F 0x46BE 8
+
+D 0x48AC 0x48B0 rotulo_ball  Los cuatro tiles ASCII "BALL" que 0x4888 copia a la fila 1 columna 20 del marcador, delante del numero de bolas de reserva (0xE050) que pinta a continuacion en la columna 29.
+
+D 0x48F6 0x4900 cursor_en_1_player  Lista formato A del cursor del menu: los tiles 0x5C-0x5D (el simbolo del cursor) en la fila de "1 PLAYER" y dos tiles 0x00 que lo borran de la fila de "2 PLAYERS". La elige 0x48E7 cuando (0xE006)=0.
+D 0x4900 0x490A cursor_en_2_players  La lista simetrica: borra el cursor de "1 PLAYER" y lo pinta en "2 PLAYERS" ((0xE006)=1).
+
+D 0x498D 0x4A24 tiles_del_logo_konami  Bloque formato B que 0x490A descomprime en VRAM 0x2008 de los tres tercios: los patrones de los tiles 0x01-0x1B. Los 26 primeros son el logotipo KONAMI en tres filas (3+11+12 tiles, las anchuras que pinta 0x491E al hacerlo subir por el titulo), luego el simbolo (c) -los bytes 38 44 BA AA B2 AA 44 38- y la raya de subrayado (0x1B). El relleno posterior les pone color 0xF0 (blanco sobre transparente).
+
+D 0x4A70 0x4C40 tiles_de_la_mesa  Los patrones que 0x4A24 copia tal cual a VRAM 0x2400 en los tres tercios: 0x1D8 bytes, los tiles 0x80-0xBA con el dibujo de la mesa (bandas, troneras, tapete). SOLAPE DELIBERADO, dos veces: los ultimos 8 bytes de la copia (0x4C40-0x4C47) son a la vez el principio del bloque de colores siguiente; y el tramo 0x4B30-0x4C4F se copia ADEMAS a VRAM 0x1800 como los nueve patrones de sprite de 16x16 (0x4A5D): las bolas y la marca de la blanca son los mismos bytes leidos como sprites.
+D 0x4C40 0x4C59 colores_de_la_mesa_comprimidos  Bloque formato B que 0x4A30 descomprime en VRAM 0x0400 de los tres tercios: los colores de los tiles de la mesa. Sus ocho primeros bytes son tambien el final de los patrones de arriba (el solape esta contado alli).
+D 0x4C59 0x4CA8 plano_de_la_mesa  El dibujo de la mesa en la tabla de nombres, tal como lo consume 0x4A39: una secuencia de [contador][bloque formato B sin destino], donde cada bloque es una fila de tiles que se repite [contador] filas seguidas desde VRAM 0x38E2 bajando de 0x20 en 0x20. Cierra exacto en el 0x00 final: 7 grupos que cubren 16 filas, de la 7 a la 22.
+
+D 0x52DC 0x52E1 rotulo_speed  Los cinco tiles ASCII "SPEED" que 0x5317 copia a VRAM, delante del indicador de fuerza del tiro.
+D 0x52E1 0x52E5 rotulo_rest  Los cuatro tiles ASCII "REST" que 0x52E8 copia a VRAM.
+
+D 0x539C 0x53DD tabla_de_coseno_de_la_fuerza  Los 65 valores 255*cos(i*90/64 grados), i=0..64 (comprobado numericamente: error maximo 1). La lee 0x5383 con el indice saturado a 0x40, dos veces (i y 64-i), para sacar el coseno y el seno con una sola tabla.
+F 0x539C 16
+
+D 0x54E6 0x55E6 tabla_de_seno_por_pendiente  256 valores: 255*sin(atan(p)) con p=i/255 (error maximo 1, comprobado). El movimiento guarda la direccion como PENDIENTE dentro de un octante (el cociente dy/dx que saca la division de 0x5352) mas los reflejos en 0xE1A2; esta tabla da la componente mayor del vector unidad, escalada a 255.
+F 0x54E6 16
+D 0x55E6 0x56E6 tabla_de_coseno_por_pendiente  256 valores: 255*cos(atan(p)) con p=i/255 (error maximo 1). La pareja de la anterior: 0x5482 lee las dos para montar (0xE1A5, 0xE1A6), las componentes del vector de velocidad.
+F 0x55E6 16
+D 0x56E6 0x5726 tabla_de_angulo_por_pendiente  64 valores: atan(i*4/255) en 1/256 de vuelta (0x00-0x20, error maximo 1). Convierte la pendiente en el angulo que se guarda en 0xE1A1 (con los bits de espejo encima): el angulo redondeado del tiro.
+F 0x56E6 16
+D 0x5726 0x5766 tabla_de_angulo_complementario  Los mismos 64 valores restados de 0x40: el angulo cuando la pendiente se midio contra el otro eje (la rama de 0x54BD).
+F 0x5726 16
+
+D 0x5788 0x5880 tiles_del_rotulo_del_titulo  Los 31 patrones (0xF8 bytes) que 0x5766 copia a VRAM 0x2600: los tiles 0xC0-0xDE. El 0xC0 es el apostrofe de "KONAMI'S" (color 0xF0, blanco); los tiles 0xC1-0xDE son las letras grandes del logo BILLIARDS, en verde (color 0xC0), que la animacion del titulo (0x48B8) va soltando de una en una en las filas 5 y 6.
+F 0x5788 8
+
+D 0x5ACD 0x5AD3 tabla_de_la_animacion_del_rate  Las tres palabras del despachador, detras del `call` de 0x5ACA: las fases de aparecer, esperar y borrar del rotulo del multiplicador (el indice esta en 0xE1B0).
+F 0x5ACD 2
+
+D 0x5B85 0x5B8A rotulo_x100  Los cinco tiles "|100|" (0xB9 "1" "0" "0" 0xB9) que 0x5B19 copia a la fila 3 tras el tile del multiplicador: el cartel "n x 100" de los puntos de la bola embocada.
+D 0x5B8A 0x5B90 multiplicadores_del_rate  Los seis valores BCD del multiplicador de puntos, indexados por (0xE1AE): 1, 2, 4, 8, 16 y 16. Los lee 0x5B29 para el cartel y 0x5B9F para la pantalla de RATE. El byte anterior (0xB9, el final del rotulo) hace de tope.
+F 0x5B8A 6
+
+D 0x5BBF 0x5BC4 rotulo_rate  Los cuatro tiles ASCII "RATE" mas un tile 0x00 que 0x5B90 copia a la fila 5 columna 4, delante del multiplicador vigente.
+
+# --- El sonido: driver de tres canales en la interrupcion (0x5C0E) ---
+D 0x5D07 0x5D08 partitura_vacia  Un solo 0xFF (el terminador del driver): es la partitura a la que apuntan los numeros de sonido 16-18 de la tabla de abajo, los huecos sin musica.
+D 0x5D08 0x5D14 semitonos  Los doce divisores de frecuencia del PSG de una octava (6A 64 5F ... 38), la misma tabla de semitonos que lleva toda la familia Konami de 1984. La lee 0x5CE7 al traducir cada nota.
+F 0x5D08 12
+D 0x5D14 0x5D1C duraciones_de_nota  Las ocho duraciones en interrupciones que indexa el nibble alto del byte de nota en el modo efecto (0x5CCE): 4, 6, 8, 12, 14, 22, 44 y 84 (0x54). Las dos ultimas comparten sus bytes con el hueco del puntero 0 de la tabla siguiente: Konami empalmo las dos tablas.
+F 0x5D14 8
+D 0x5D1C 0x5D40 punteros_de_los_sonidos  Las dieciocho palabras (numeros de sonido 1-18) que 0x5BE5 lee con base 0x5D1A e indice (numero & 0x3F)*2: la direccion de la partitura de cada sonido. El "puntero 0" no existe: sus dos bytes son las duraciones 44 y 84 de la tabla anterior, y ningun sitio pide el sonido 0. Los numeros 16-18 apuntan a la partitura vacia de 0x5D07.
+F 0x5D1C w2
+
+# Las partituras, delimitadas por los punteros de 0x5D1C (cada una acaba en su
+# 0xFF, y los limites cierran exactos unos contra otros). El formato: bytes de
+# nota [octava:duracion segun modo], 0xFD fija los parametros del canal,
+# 0xFE relanza el sonido (repeticion), 0xFF fin.
+D 0x5D40 0x5D53 sonido_08  Partitura del numero 8: la pide 0x4E60 con A=0x88.
+D 0x5D53 0x5D66 sonido_09  Partitura del numero 9.
+D 0x5D66 0x5D7B sonido_13  Partitura del numero 13: la pide el menu al confirmar la seleccion (0x443C, A=0x8D): el jingle de empezar la partida.
+D 0x5D7B 0x5D8E sonido_14  Partitura del numero 14.
+D 0x5D8E 0x5D9A sonido_15  Partitura del numero 15.
+D 0x5D9A 0x5DC9 sonido_10  Partitura del numero 10: la escala que pide 0x44F6 con A=0x8A al quedarse sin bolas de reserva: la musica del GAME OVER.
+D 0x5DC9 0x5DDC sonido_11  Partitura del numero 11.
+D 0x5DDC 0x5DF0 sonido_12  Partitura del numero 12.
+D 0x5DF0 0x5E49 sonido_04  Partitura del numero 4, la mas larga (89 bytes).
+D 0x5E49 0x5E59 sonido_05  Partitura del numero 5.
+D 0x5E59 0x5E85 sonido_06  Partitura del numero 6: la pide 0x4E27 (A=0x06, con prioridad de efecto).
+D 0x5E85 0x5E8F sonido_01  Partitura del numero 1 (y con sus mismos bytes empieza la 2).
+D 0x5E8F 0x5EA1 sonido_02_y_03  Partitura de los numeros 2 y 3 (los dos punteros apuntan aqui): la pide 0x4D9F con A=0x03, dentro de la fisica de las bolas.
+D 0x5EA1 0x5EB3 sonido_07  Partitura del numero 7: la fanfarria de la bola de reserva extra que pide 0x47CA (A=0x07) al cruzar el marcador el umbral de 0xE052.
+
+D 0x5EB9 0x5EC1 tabla_del_despachador_5EB6  Las cuatro palabras del despachador, detras del `call` de 0x5EB6 (el indice esta en 0xE1F0).
+F 0x5EB9 2
+
+D 0x5FB3 0x8000 relleno  El final vacio del chip: 8269 bytes de 0xFF, de 0x5FB3 a 0x7FFF. Ninguna instruccion del cartucho lee de aqui.
+F 0x5FB3 16
+
+# ---------------------------------------------------------------------------
+# Las etiquetas de las rutinas (solo las leidas; el resto conserva su L_xxxx)
+# ---------------------------------------------------------------------------
+L 0x4010 escribe_en_vram  WRTVRM de la BIOS con los registros cruzados: DE es la direccion y A el dato
+L 0x4016 lee_de_vram  RDVRM de la BIOS con DE como direccion
+L 0x401C abre_la_vram_para_escribir  SETWRT con DE como direccion, y deja en C' el puerto de datos del VDP (0x0007) para los `out (c)` de los bucles de copia
+L 0x402A suma_a_a_hl  HL += A sin tocar mas registros
+L 0x402F suma_a_a_de  DE += A
+L 0x4034 interrupcion  El gancho H.KEYI apunta aqui: lee el estado del VDP, toca el sonido (0x5C0E), y si no esta ya dentro (0xE005) lee los mandos y corre un paso del juego (0x4337) con las interrupciones abiertas
+L 0x405F init  El INIT que declara la cabecera: instala la interrupcion en H.KEYI, borra la RAM 0xE000-0xEFFF, monta la pantalla y el titulo, y se queda en el bucle de 0x409E: el juego entero corre en la interrupcion
+L 0x40A0 despachador  Coge la direccion de retorno con `pop hl`, le suma el doble del indice A y salta a la palabra que hay alli: la tabla va pegada detras del `call`
+L 0x40AA lee_las_teclas_del_menu  Flancos de teclado en 0xE008/0xE009: fuera del estado 5 (el menu), cualquier tecla de las de jugar rearma la pantalla del titulo (0x43A6); en el menu, arriba/abajo mueven el cursor (0xE006) y el disparo pone el estado 8
+L 0x40E4 lee_los_mandos  Lee el joystick (registros 15 y 14 del PSG) o el teclado segun el bit 6 de 0xE002, y deja los bits en 0xE006-0xE009
+L 0x4337 avanza_el_juego  El paso de juego que corre dentro de la interrupcion: incrementa el contador de cuadros (0xE003) y despacha el estado (0xE000) por la tabla de 0x4350
+L 0x4370 estado_0_prepara_el_titulo  Programa los registros del VDP y arma la subida del logo: 14 pasos (0xE00A) desde la fila 21 (0xE00E=0x3AAA)
+L 0x4381 estado_1_sube_el_logo  Cada dos cuadros pinta el logotipo KONAMI una fila mas arriba (0x491E); al llegar pinta la raya y SOFTWARE (lista 0x431B) y pasa
+L 0x4394 estado_2_despeja_el_titulo  Agota el contador 0xE004, restaura el borde, borra sprites y tabla de nombres (0x43EF) y pasa
+L 0x43A6 rearma_el_titulo  Lo llama el teclado fuera del menu: pinta la pantalla del titulo entera de golpe (0x4401) y salta al estado 5, el menu
+L 0x43B3 estado_4_despliega_el_logo_grande  Suelta letra a letra el BILLIARDS verde (0x48B8); al acabar pinta el cursor y el menu y pasa
+L 0x43C1 estado_5_el_menu  Pinta el cursor donde diga 0xE006 y deja correr el contador; las teclas las procesa 0x40AA, que salta al estado 8 con el disparo
+L 0x43D0 estado_6_cortina_hacia_la_partida  Corre la cortina de borrado (0x46EB) y al terminar entra en el modo de juego (0x48B0)
+L 0x43DA estado_7_vuelta_al_titulo  Segun 0xE00B: arranca el modulo del attract (0x5EB3) o corre la cortina y vuelve al estado 0
+L 0x43EF borra_sprites_y_nombres  Corta la lista de sprites (0xD0 en 0x3B00) y pone a cero la tabla de nombres entera
+L 0x4401 pinta_el_titulo_de_golpe  La version sin animacion: borra, logo hasta el final, copyright, menu y cursor
+L 0x442B estado_8_confirma_la_seleccion  Submodo 0xE201: pide el jingle de salida (sonido 13), parpadea la opcion elegida 0x50 cuadros y arranca la partida (0x45A2)
+L 0x4470 estado_9_saca_bola  Gasta una bola de reserva (0xE050), refresca el marcador y, con dos jugadores, pinta PLAYER y el numero del que entra
+L 0x44A5 estado_10_monta_la_mesa  Borra el aviso de PLAYER y coloca las bolas en su posicion inicial (0x45D0)
+L 0x44BF estado_11_la_tacada  Refresca los sprites de las bolas (0x463F) y espera a que la fisica diga: 0xE00C en marcha, y 0xE00D distinto de cero manda al estado 15
+L 0x44D3 estado_12_fin_de_tacada  Espera al sonido, y decide: sin bolas de reserva es el GAME OVER (musica, cortina, cartel y estado 13); con ellas, recoloca y sigue (estado 9) o pasa el turno si el otro jugador conserva bolas
+L 0x4526 estado_13_cambia_de_jugador  Intercambia las ternas 0xE050-0xE052 y 0xE080-0xE082, conmuta el bit 7 de 0xE002 y vuelve a sacar bola
+L 0x454E estado_14_tras_el_game_over  Deja el cartel un rato: si el otro jugador sigue vivo le pasa el turno; si no, apaga y vuelve al titulo por el estado 7
+L 0x4570 estado_15_mesa_completada  Bola de reserva de regalo, STAGE+1 en BCD, recoloca las bolas y a sacar de nuevo
+L 0x4588 pasa_al_estado_siguiente  0xE004=0x50 y estado+1 (la entrada 0x458A deja poner otro contador, y 0x458D solo incrementa)
+L 0x4592 pinta_cartel_y_numero_de_jugador  Pinta la lista que llega en HL y le anade el digito 1 o 2 segun el bit 7 de 0xE002
+L 0x45A2 prepara_la_partida  Borra los marcadores y las variables (0xE043-0xE1FA), copia los valores iniciales y, con dos jugadores, arma la terna del segundo
+L 0x45D0 coloca_las_bolas  Pinta la mesa y reparte los ocho registros de 0x461F en los registros de bola de 0xE100 (dieciseis bytes por bola)
+L 0x463F refresca_los_sprites  Vuelca el estado de las bolas de 0xE100 a los atributos de sprite de la VRAM
+L 0x4699 monta_la_pantalla  Programa el VDP, silencia el PSG (registro 7 = 0xB8) y borra los 16 KB de VRAM
+L 0x46AD programa_los_registros_del_vdp  Escribe los ocho valores de 0x46BE en los registros 0-7
+L 0x46C6 restaura_el_borde  Registro 7 = 0xE0
+L 0x46CD copia_a_vram  BC bytes desde HL a la direccion DE, por el puerto de datos
+L 0x46DC rellena_vram  Escribe BC veces el byte A desde la direccion DE
+L 0x46EB cortina_de_borrado  Borra la pantalla una columna por cuadro segun el contador de 0xE004; devuelve signo cuando ha terminado
+L 0x472A borra_lista_formato_a  La entrada que enmascara con 0x00: la misma lista que pinta, borra
+L 0x472E pinta_lista_formato_a  [destino:2][tiles...] con 0xFE = otro destino y 0xFF = fin
+L 0x4743 carga_la_fuente  Rellena los colores (0xF0) y copia los 48 glifos de 0x4136 a los tiles 0x30-0x5F de los tres tercios
+L 0x4757 copia_a_los_tres_tercios  Como 0x46CD pero repitiendo la copia en los tres tercios del generador (D += 8 por pasada)
+L 0x476C rellena_los_tres_tercios  Idem con el relleno
+L 0x4782 suma_al_marcador  Suma DE en BCD al marcador del jugador activo (0xE043 o 0xE046 segun el bit 7 de 0xE002), con tope en 999999; de paso da la bola extra al cruzar el umbral de 0xE052 y actualiza el record (0xE040) si toca
+L 0x47F1 refresca_el_marcador  Pinta los rotulos del marcador y los numeros: 1P, 2P si procede, HI, STAGE, BALL y las cifras
+L 0x4833 pinta_el_record  Las seis cifras BCD de 0xE040 en la fila 0
+L 0x4888 pinta_ball_y_reserva  El rotulo BALL de 0x48AC y el numero de bolas de reserva (0xE050)
+L 0x48B0 arranca_el_modo_de_juego  Salta al modulo de 0x5EB3 (la mesa y la partida)
+L 0x48B8 despliega_el_logo_grande  Pinta el KONAMIS de la lista 0x432C y suelta una letra del BILLIARDS verde por llamada (tiles 0xC1+, contador 0xE00A); devuelve acarreo mientras queden
+L 0x48E7 pinta_el_cursor_del_menu  Elige la lista 0x48F6 o 0x4900 segun 0xE006
+L 0x490A carga_los_tiles_del_logo  Descomprime 0x498D en los patrones 0x2008 de los tres tercios y les pone el color blanco
+L 0x491E sube_el_logo_konami  Pinta el logotipo (tiles 0x01-0x1A, filas de 3+11+12) una fila mas arriba y borra la que deja atras; cuenta en 0xE00A
+L 0x4943 pinta_tiles_seguidos  B tiles consecutivos desde el numero A en la direccion DE, y devuelve la fila siguiente
+L 0x4953 descomprime_en_los_tres_tercios  Pasa el bloque formato B por los tres tercios (D += 8 por pasada)
+L 0x4965 pinta_lista_formato_b  Lee el destino de los dos primeros bytes y entra en 0x4969
+L 0x4969 descomprime_formato_b  [ordenes] con bit 7 = copia literales, sin bit 7 = repite el byte siguiente, 0xFF = otro destino, 0x00 = fin
+L 0x4A24 carga_los_tiles_de_la_mesa  Copia los patrones 0x4A70 a 0x2400 de los tres tercios y descomprime sus colores (0x4C40)
+L 0x4A39 pinta_la_mesa  Recorre el plano de 0x4C59: cada grupo es un bloque formato B que se repite N filas desde VRAM 0x38E2; al acabar carga los patrones de sprite (0x4B30) y corta la lista de sprites
+L 0x4E4B recoloca_las_bolas  La llamada comun de los estados 12 y 15 antes de volver a sacar
+L 0x5352 divide_hl_entre_bc  La division de 16 bits del juego: devuelve el cociente en L y aviso de desbordamiento; es la que saca la pendiente del vector del tiro
+L 0x5383 coseno_de_la_fuerza  Lee la tabla de 0x539C con el indice saturado a 0x40, para el coseno, y con 0x40 menos el indice para el seno
+L 0x5482 convierte_pendiente_en_vector  Con la pendiente (0xE1A3/0xE1A4) lee las cuatro tablas de 0x54E6: deja las componentes en 0xE1A5/0xE1A6 y el angulo del tiro en 0xE1A1, con los reflejos de 0xE1A2
+L 0x5766 carga_los_tiles_del_rotulo_grande  Copia 0x5788 a los patrones 0x2600: el apostrofe blanco y las letras verdes del BILLIARDS
+L 0x5A3A ensena_el_rate  El cartel del multiplicador de la apuesta
+L 0x5BC4 pide_un_sonido  Encola el numero A si su canal esta libre o suena algo menos prioritario: canal de 0xE024 para numeros bajos, 0xE012 para 0x87-0x89, y el tercero para el resto; el puntero sale de la tabla de 0x5D1C
+L 0x5C0E toca_el_sonido  El paso del driver en cada interrupcion: tres canales de 9 bytes desde 0xE010, con 0xFD para los parametros, 0xFE para repetir y 0xFF de fin
+L 0x5EB3 modulo_de_la_mesa  El otro punto con despachador del juego: salta por la tabla de 0x5EB9 con el indice de 0xE1F0
