@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Decodifica las listas de pintado del cartucho. Hay DOS interpretes:
 
-  A) 0x4099 / 0x409D  -  [destino_VRAM:2] [bytes] ... 0xFE=otro destino, 0xFF=fin
-     Con la entrada 0x4099 el byte se enmascara con 0 (o sea, BORRA lo que la
-     misma lista pinta); con 0x409D se escribe tal cual.
+  A) 0x472A / 0x472E  -  [destino_VRAM:2] [bytes] ... 0xFE=otro destino, 0xFF=fin
+     Con la entrada 0x472A el byte se enmascara con 0 (o sea, BORRA lo que la
+     misma lista pinta); con 0x472E se escribe tal cual.
 
-  B) 0x468F           -  [destino_VRAM:2] [ordenes] ... 0x80=otro destino, 0x00=fin
+  B) 0x4965 / 0x4969  -  [destino_VRAM:2] [ordenes] ... 0xFF=otro destino, 0x00=fin
      Cada orden es un contador: con el bit 7 puesto, copia (n and 0x7F) bytes
      literales de la lista; con el bit 7 limpio, repite n veces el byte que
      sigue.
 
-Los numeros de tile de los textos son ASCII con un desplazamiento: la fuente
-grande de 0x83B1 son los tiles 0xC0-0xEF, con 0xC0-0xC9 = "0".."9" y
-0xD1-0xEA = "A".."Z", o sea tile = ASCII + 0x90 para las letras.
+Los numeros de tile de los textos son ASCII directo: la fuente de 0x4136
+ocupa los tiles 0x30-0x5F, o sea "0"-"9", los simbolos y las mayusculas.
 
 Uso: listas.py <rom> <a|b> <direccion> [limite]
 """
@@ -24,12 +23,8 @@ ORG = 0x4000
 def texto(bs):
     out = []
     for b in bs:
-        if 0xD1 <= b <= 0xEA:
-            out.append(chr(b - 0x90))
-        elif 0xC0 <= b <= 0xC9:
-            out.append(chr(b - 0xC0 + 0x30))
-        elif 0x21 <= b <= 0x5F:
-            out.append(chr(b + 0x20))
+        if 0x30 <= b <= 0x5F:
+            out.append(chr(b))
         elif b == 0x00:
             out.append(' ')
         else:
@@ -39,8 +34,8 @@ def texto(bs):
 
 def fila_col(de):
     v = de & 0x3FFF
-    if 0x1800 <= v < 0x1B00:
-        return "  nombres fila %2d col %2d" % ((v - 0x1800) // 32, (v - 0x1800) % 32)
+    if 0x3800 <= v < 0x3B00:
+        return "  nombres fila %2d col %2d" % ((v - 0x3800) // 32, (v - 0x3800) % 32)
     return ""
 
 
@@ -71,7 +66,7 @@ def lista_b(d, p, lim):
         while p < lim:
             n = d[p]
             p += 1
-            if n == 0x80:
+            if n == 0xFF:
                 break
             if n == 0x00:
                 print("  --- fin de la lista en 0x%04X" % (ORG + p - 1))

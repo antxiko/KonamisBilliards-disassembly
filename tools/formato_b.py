@@ -7,7 +7,7 @@ Es el formato con el que el juego guarda los bloques grandes de VRAM
     destino (2 bytes, bajo primero)
     orden*  :  n con el bit 7 puesto  -> n & 0x7F bytes literales a continuacion
                n entre 1 y 0x7F       -> el byte siguiente, repetido n veces
-               0x80                   -> viene otro destino (y siguen ordenes)
+               0xFF                   -> viene otro destino (y siguen ordenes)
                0x00                   -> fin del bloque
 
 El parche de traduccion tiene que REESCRIBIR bloques asi (la fuente katakana,
@@ -16,6 +16,11 @@ falta comprimirlos. La prueba de que el compresor es correcto esta en
 `--prueba`: descomprime todos los bloques del cartucho, los vuelve a comprimir
 y comprueba que descomprimen a lo mismo, y dice si el resultado mide igual,
 mas o menos que el original.
+
+OJO: en este cartucho hay bloques que se llaman con el destino YA puesto en
+DE (0x498D, 0x4C40 y los grupos del plano de la mesa 0x4C59): esos NO llevan
+los dos bytes de destino delante, y esta herramienta los describe corridos.
+Los que entran por 0x4965 (la lista del titulo 0x431B) si lo llevan.
 
 Uso:
   formato_b.py <rom> <direccion>            describe el bloque
@@ -41,7 +46,7 @@ def descomprime(rom, addr, org=ORG):
             if n == 0x00:
                 tramos.append((de, bytes(out)))
                 return tramos, org + p
-            if n == 0x80:
+            if n == 0xFF:
                 tramos.append((de, bytes(out)))
                 break
             if n & 0x80:
@@ -62,7 +67,7 @@ def descomprime_hasta(rom, addr, hasta, org=ORG):
     while org + p < hasta:
         k = rom[p]
         p += 1
-        if k in (0x00, 0x80):
+        if k in (0x00, 0xFF):
             raise SystemExit("el tramo acaba antes de 0x%04X" % hasta)
         if k & 0x80:
             n += k & 0x7F
@@ -111,7 +116,7 @@ def comprime(tramos):
     for k, (de, datos) in enumerate(tramos):
         out += bytes([de & 0xFF, de >> 8])
         out += comprime_tramo(datos)
-        out.append(0x80 if k < len(tramos) - 1 else 0x00)
+        out.append(0xFF if k < len(tramos) - 1 else 0x00)
     return bytes(out)
 
 
