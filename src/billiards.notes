@@ -1462,3 +1462,73 @@ C 0x5c6d el volumen que toca
 C 0x5c6e la duracion de la nota
 C 0x5c71 al contador que la va gastando
 C 0x5c74 tres mas para la envolvente
+# --- Tanda 13: el mapa de la RAM, como cabecera de bloque ---
+
+B 0x4010 EL MAPA DE LA RAM. Todo lo que el juego escribe cabe entre 0xE000 y
+B 0x4010 0xE202, y el INIT lo borra de un golpe al arrancar; la pila esta en 0xE400.
+B 0x4010 ---
+B 0x4010 EL RELOJ Y LAS BANDERAS
+B 0x4010 0xE000 = el estado del juego, indice de la tabla de 0x4350 (0 a 15).
+B 0x4010 0xE002 = banderas. Bit 7: de quien es el turno. Bit 6: partida de verdad
+B 0x4010 -sin el no se puntua ni suena nada, que es como corre el attract-. Bit 5:
+B 0x4010 hay segundo jugador.
+B 0x4010 0xE003 = contador de cuadros, el que marca todos los parpadeos.
+B 0x4010 0xE004 = la espera del estado en curso. En la cortina, ademas, su bit 6
+B 0x4010 conmuta entre las dos columnas que borra en cada paso.
+B 0x4010 0xE005 = cerrojo, para que una interrupcion no entre dentro de otra.
+B 0x4010 0xE006 = la opcion del menu, 0 o 1.
+B 0x4010 0xE008 y 0xE009 = las teclas del cuadro anterior y las de este. De
+B 0x4010 compararlas salen los flancos, y ahi es donde el attract escribe sus
+B 0x4010 pulsaciones fingidas.
+B 0x4010 0xE00A = filas que le quedan al logo, y de paso bloquea el refresco de
+B 0x4010 sprites mientras haya animacion en marcha.
+B 0x4010 0xE00B = por que se vuelve al titulo. 0xE00C = tacada terminada.
+B 0x4010 0xE00D = mesa completada. 0xE00E = la esquina del logo en la VRAM.
+B 0x4010 0xE010 = los tres canales de sonido, de nueve bytes cada uno.
+B 0x4010 ---
+B 0x4010 EL MARCADOR
+B 0x4010 0xE040 = el record, tres bytes BCD. 0xE043 = el marcador del primer
+B 0x4010 jugador y 0xE046 el del segundo, tambien de tres bytes BCD.
+B 0x4010 0xE050 = bolas de reserva. 0xE051 = el numero de fase en BCD.
+B 0x4010 0xE052 = el millar en el que toca bola extra. 0xE053 = los intentos que
+B 0x4010 le quedan a esta bola.
+B 0x4010 0xE080 = la misma terna del jugador que espera, MENOS la fase: 0xE051 no
+B 0x4010 se intercambia nunca, asi que los dos jugadores comparten numero.
+B 0x4010 ---
+B 0x4010 LA MESA: 0xE100, ocho registros de dieciseis bytes. Los siete primeros
+B 0x4010 son las bolas -la blanca y seis de color-; el octavo, 0xE170, no es una
+B 0x4010 bola sino el punto al que se apunta. Cada registro:
+B 0x4010 +0 = 0xFF mientras la bola sigue en el pano.
+B 0x4010 +1 = la energia que le queda; a cero, la bola esta parada.
+B 0x4010 +2 = el angulo con el que va.
+B 0x4010 +3 = la Y en 16 bits, con el +4 de parte entera.
+B 0x4010 +5 = la X en 16 bits, con el +6 de parte entera.
+B 0x4010 +7 = la velocidad Y con signo, y +9 la velocidad X.
+B 0x4010 +11 = numero de patron de sprite, y +12 su color.
+B 0x4010 +13 = el frenado del pano, ya repartido por componentes.
+B 0x4010 +15 = con que bola choco la ultima vez.
+B 0x4010 Los cuatro que el VDP necesita -el +4, el +6, el +11 y el +12- son los
+B 0x4010 que 0x466D vuelca de un tiron a los atributos de sprite.
+B 0x4010 ---
+B 0x4010 EL TIRO Y EL CHOQUE
+B 0x4010 0xE188 = dY del tiro, 0xE18A = dX. 0xE18E y 0xE190 = el vector unidad,
+B 0x4010 ya dividido por la distancia.
+B 0x4010 0xE18F no es una variable: es una BOLA FALSA, montada para que su +7 y
+B 0x4010 su +9 caigan en 0xE196 y 0xE198. Asi la rutina de la pendiente, sin
+B 0x4010 cambiarle una linea, trabaja sobre la recta que une dos centros. 0xE1EA
+B 0x4010 es la otra bola falsa, la que usa el attract para apuntar.
+B 0x4010 0xE194 = la bola que se esta moviendo, 0xE19C = con la que choca.
+B 0x4010 0xE19F = hay un tiro rodando. 0xE1A0 = la fuerza, que cicla sola 1, 2, 3.
+B 0x4010 0xE1A1 = el angulo. 0xE1A2 = los dos espejos. 0xE1A3 = la pendiente.
+B 0x4010 0xE1A4 = cual de los dos ejes es el mayor. 0xE1A5 y 0xE1A6 = las dos
+B 0x4010 componentes del vector unidad.
+B 0x4010 0xE1AD = la blanca ha caido. 0xE1AE = cuantas bolas seguidas se llevan
+B 0x4010 embocadas, o sea el multiplicador de puntos.
+B 0x4010 0xE1AF = queda recuento pendiente, 0xE1B0 = en que fase va.
+B 0x4010 0xE1D0 = las bolas embocadas en esta tacada, las que van a cobrarse.
+B 0x4010 0xE1D7 = las ya cobradas, las que se ven en la fila de arriba.
+B 0x4010 0xE1F0 = el submodo del attract. 0xE1F6 = la cuenta atras de cuando
+B 0x4010 todo se para. 0xE1F9 = por que eje se puede mover la mira, y 0xE1FA por
+B 0x4010 donde la lleva el attract.
+B 0x4010 0xE1FB = si la siguiente entrada lleva cortina o no.
+B 0x4010 0xE201 = el submodo del estado 8. 0xE202 = el reloj de abandono.

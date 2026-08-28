@@ -22,6 +22,77 @@ DATA_cabecera:
 ; ======================================================================
 
 
+
+; ----------------------------------------------------------------------
+; EL MAPA DE LA RAM. Todo lo que el juego escribe cabe entre 0xE000 y
+; 0xE202, y el INIT lo borra de un golpe al arrancar; la pila esta en 0xE400.
+; ---
+; EL RELOJ Y LAS BANDERAS
+; 0xE000 = el estado del juego, indice de la tabla de 0x4350 (0 a 15).
+; 0xE002 = banderas. Bit 7: de quien es el turno. Bit 6: partida de verdad
+; -sin el no se puntua ni suena nada, que es como corre el attract-. Bit 5:
+; hay segundo jugador.
+; 0xE003 = contador de cuadros, el que marca todos los parpadeos.
+; 0xE004 = la espera del estado en curso. En la cortina, ademas, su bit 6
+; conmuta entre las dos columnas que borra en cada paso.
+; 0xE005 = cerrojo, para que una interrupcion no entre dentro de otra.
+; 0xE006 = la opcion del menu, 0 o 1.
+; 0xE008 y 0xE009 = las teclas del cuadro anterior y las de este. De
+; compararlas salen los flancos, y ahi es donde el attract escribe sus
+; pulsaciones fingidas.
+; 0xE00A = filas que le quedan al logo, y de paso bloquea el refresco de
+; sprites mientras haya animacion en marcha.
+; 0xE00B = por que se vuelve al titulo. 0xE00C = tacada terminada.
+; 0xE00D = mesa completada. 0xE00E = la esquina del logo en la VRAM.
+; 0xE010 = los tres canales de sonido, de nueve bytes cada uno.
+; ---
+; EL MARCADOR
+; 0xE040 = el record, tres bytes BCD. 0xE043 = el marcador del primer
+; jugador y 0xE046 el del segundo, tambien de tres bytes BCD.
+; 0xE050 = bolas de reserva. 0xE051 = el numero de fase en BCD.
+; 0xE052 = el millar en el que toca bola extra. 0xE053 = los intentos que
+; le quedan a esta bola.
+; 0xE080 = la misma terna del jugador que espera, MENOS la fase: 0xE051 no
+; se intercambia nunca, asi que los dos jugadores comparten numero.
+; ---
+; LA MESA: 0xE100, ocho registros de dieciseis bytes. Los siete primeros
+; son las bolas -la blanca y seis de color-; el octavo, 0xE170, no es una
+; bola sino el punto al que se apunta. Cada registro:
+; +0 = 0xFF mientras la bola sigue en el pano.
+; +1 = la energia que le queda; a cero, la bola esta parada.
+; +2 = el angulo con el que va.
+; +3 = la Y en 16 bits, con el +4 de parte entera.
+; +5 = la X en 16 bits, con el +6 de parte entera.
+; +7 = la velocidad Y con signo, y +9 la velocidad X.
+; +11 = numero de patron de sprite, y +12 su color.
+; +13 = el frenado del pano, ya repartido por componentes.
+; +15 = con que bola choco la ultima vez.
+; Los cuatro que el VDP necesita -el +4, el +6, el +11 y el +12- son los
+; que 0x466D vuelca de un tiron a los atributos de sprite.
+; ---
+; EL TIRO Y EL CHOQUE
+; 0xE188 = dY del tiro, 0xE18A = dX. 0xE18E y 0xE190 = el vector unidad,
+; ya dividido por la distancia.
+; 0xE18F no es una variable: es una BOLA FALSA, montada para que su +7 y
+; su +9 caigan en 0xE196 y 0xE198. Asi la rutina de la pendiente, sin
+; cambiarle una linea, trabaja sobre la recta que une dos centros. 0xE1EA
+; es la otra bola falsa, la que usa el attract para apuntar.
+; 0xE194 = la bola que se esta moviendo, 0xE19C = con la que choca.
+; 0xE19F = hay un tiro rodando. 0xE1A0 = la fuerza, que cicla sola 1, 2, 3.
+; 0xE1A1 = el angulo. 0xE1A2 = los dos espejos. 0xE1A3 = la pendiente.
+; 0xE1A4 = cual de los dos ejes es el mayor. 0xE1A5 y 0xE1A6 = las dos
+; componentes del vector unidad.
+; 0xE1AD = la blanca ha caido. 0xE1AE = cuantas bolas seguidas se llevan
+; embocadas, o sea el multiplicador de puntos.
+; 0xE1AF = queda recuento pendiente, 0xE1B0 = en que fase va.
+; 0xE1D0 = las bolas embocadas en esta tacada, las que van a cobrarse.
+; 0xE1D7 = las ya cobradas, las que se ven en la fila de arriba.
+; 0xE1F0 = el submodo del attract. 0xE1F6 = la cuenta atras de cuando
+; todo se para. 0xE1F9 = por que eje se puede mover la mira, y 0xE1FA por
+; donde la lleva el attract.
+; 0xE1FB = si la siguiente entrada lleva cortina o no.
+; 0xE201 = el submodo del estado 8. 0xE202 = el reloj de abandono.
+; ----------------------------------------------------------------------
 escribe_en_vram:		; WRTVRM de la BIOS con los registros cruzados: DE es la direccion y A el dato
 	ex de,hl			;4010   ; DE trae la direccion de VRAM y A el dato; WRTVRM la quiere en HL
 	call 0004dh		;4011   ; BIOS WRTVRM - Writes data in VRAM | la BIOS escribe el byte
