@@ -54,7 +54,7 @@ verify: $(SRC)/billiards.asm $(ROM)
 # Lo que el reensamblado NO puede cazar: que unos datos se esten leyendo como
 # codigo. El binario sale identico igual, porque los bytes no cambian; lo unico
 # que cambia es lo que decimos de ellos.
-sanity: $(WORK)/billiards.trace.json
+sanity: $(WORK)/billiards.trace.json $(ROM)
 	@echo "=================================================================="
 	@echo " ningun byte declarado como datos puede salir como codigo"
 	@echo "=================================================================="
@@ -69,6 +69,10 @@ sanity: $(WORK)/billiards.trace.json
 	@echo " ni un byte del cartucho sin asignar"
 	@echo "=================================================================="
 	@python3 tools/presupuesto.py $(WORK) $(SRC)
+	@echo "=================================================================="
+	@echo " los sprites, contados por linea de barrido"
+	@echo "=================================================================="
+	@python3 tools/sprites_por_linea.py $(ROM)
 
 test:
 	@echo "=================================================================="
@@ -94,13 +98,16 @@ juega: $(ROM)
 # ---------------------------------------------------------------------------
 # Las imagenes y la web
 # ---------------------------------------------------------------------------
-# Aqui no hay ni una captura: las SIETE imagenes salen de la ROM. graficos.py
+# Aqui no hay ni una captura: las NUEVE imagenes salen de la ROM. graficos.py
 # repite las rutinas de carga del cartucho y sus dos interpretes de dibujo
 # sobre una VRAM vacia y luego la revela como la revelaria el VDP, asi que no
-# hace falta emulador y esto cuelga de `make` sin problema.
+# hace falta emulador y esto cuelga de `make` sin problema. La novena la pone
+# sprites_por_linea.py encima de esa misma pantalla: las casillas de 16 lineas
+# de los ocho sprites y la cuenta por linea de barrido.
 imagenes: $(ROM)
 	@mkdir -p docs/imagenes
 	python3 tools/graficos.py $(ROM) docs/imagenes
+	@python3 tools/sprites_por_linea.py $(ROM) --png docs/imagenes >/dev/null
 
 web: imagenes
 	python3 tools/md2html.py docs en

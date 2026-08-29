@@ -108,6 +108,11 @@ Midiendo los propios patrones, el dibujo de una bola ocupa **diez píxeles de
 ancho por doce de alto**. Con el píxel cuadrado de un monitor de hoy —la fila de
 arriba— eso es un óvalo, y se nota.
 
+Diez y doce son píxeles **de pantalla**. El registro 1 del VDP sale de 0x46BE y
+vale 0xE2: el bit 1 puesto pide sprites de 16×16, y el bit 0 a cero deja
+**MAG = 0**, sin magnificar. Magnificado, cada píxel del patrón cubriría dos de
+pantalla y las cifras de arriba habría que doblarlas.
+
 La fila de abajo es el mismo dibujo con cada píxel pintado **cinco de ancho por
 cuatro de alto**, que es la proporción que se le atribuye al píxel de un MSX en
 un televisor de la época. Los 10×12 pasan a ser 50×48: redondos, con un 4 % de
@@ -145,6 +150,80 @@ choque.
 
 Lo apuntó [theNestruo](https://github.com/theNestruo) en la primera issue de
 este repositorio.
+
+## Cuatro sprites por línea
+
+El TMS9918 tiene **treinta y dos sprites** en su tabla de atributos —aquí en la
+VRAM 0x3B00, que es lo que pide R5 = 0x76—, pero solo dibuja **cuatro por línea
+de barrido**. Del quinto en adelante los descarta en esa línea y enciende su
+bandera de quinto sprite. La X no interviene: un sprite cuenta en una línea si
+esa línea cae dentro de su casilla, y con 16×16 y MAG = 0 la casilla son
+dieciséis líneas, de la Y+1 a la Y+16. Dieciséis, no las doce que mide el dibujo
+de una bola.
+
+Billiards gasta ocho de las treinta y dos entradas: la bola blanca, las seis
+numeradas y la mira.
+
+### El triángulo de salida cabe justo
+
+![El triángulo de salida, con la casilla de cada sprite y la cuenta por línea de barrido](../imagenes/sprites_por_linea.png)
+
+Las ocho posiciones de arranque están en 0x461F, cuatro bytes cada una (Y, X,
+patrón, color). Contando las casillas enteras:
+
+| líneas | sprites | cuáles |
+| --- | --- | --- |
+| 97-104 | 1 | la 4 |
+| 105-112 | 2 | la 2 y la 4 |
+| 113-120 | **4** | la blanca, la 1, la 2 y la 5 |
+| 121-128 | **4** | la blanca, la 1, la 3 y la 5 |
+| 129-136 | 3 | la 3, la 6 y la mira |
+| 137-144 | 2 | la 6 y la mira |
+
+Máximo cuatro, nunca cinco. Y por los pelos: la casilla de la 4, que sale en
+Y=0x60, acaba en la línea 112, justo donde empiezan las de las tres que salen en
+Y=0x70. **Un píxel** rompe el reparto: la 3, que sale en Y=0x78, subida una sola
+línea ya pone cinco sprites en la 120.
+
+En la imagen, cada bola lleva marcada su casilla de 16×16 —el cuadrado a rayas,
+que es lo que mira el VDP— y la columna de la derecha cuenta línea a línea
+cuántos sprites la tocan, con la cifra al lado; las líneas en las que la cuenta
+llega a cuatro salen en rojo. La dibuja `tools/sprites_por_linea.py` desde los bytes de la ROM, y el
+mismo programa cuelga de `make sanity`: si alguna de estas cifras dejara de salir
+del binario, el `make` se pondría rojo.
+
+### En partida se pasa, y no hay manera de evitarlo
+
+El centro de una bola solo puede estar entre Y=0x3E y Y=0xA1 —los dos `sub` de
+`mueve_una_bola`, el `sub 03Eh` de 0x4ED4 y el `sub 064h` de 0x4ED6—, así que las
+casillas de las siete bolas viven en 115 líneas, de la 63 a la 177. Y entre las
+siete miden 7 × 16 = 112. Sobran tres líneas: que dos casillas se solapen no es
+la excepción, es lo que pasa siempre. Con cinco solapadas el VDP dibuja cuatro y
+se traga la quinta.
+
+El cartucho no lo evita. Lo que hace es que la que se pierda no sea siempre la
+misma. `refresca_los_sprites` (0x463F) vuelca las ocho entradas a la VRAM en dos
+grupos de cuatro, y **el bit 0 del contador de cuadros decide qué grupo va
+primero**:
+
+- el contador es 0xE003, y `avanza_el_juego` lo sube con el `inc (hl)` de 0x433A,
+  una vez por interrupción;
+- el `rra` de 0x4651 lleva ese bit 0 al acarreo y elige con qué mitad se empieza;
+- el `rr c` de 0x465E lo vuelve a sacar para la segunda mitad, que es la otra.
+
+Cuadro par, el orden en la tabla de atributos es blanca-1-2-3-4-5-6-mira; cuadro
+impar, 4-5-6-mira-blanca-1-2-3. Como el VDP se queda con los cuatro primeros de
+la lista que toquen la línea, la que se pierde cambia en cada cuadro.
+
+Un ejemplo. Si en una línea coinciden la blanca, la 1 y la 2 —del primer grupo—
+con la 4 y la 5 —del segundo—, el cuadro par dibuja blanca, 1, 2 y 4, y se traga
+la 5; el impar dibuja 4, 5, blanca y 1, y se traga la 2. Ninguna desaparece del
+todo: las dos **parpadean**, a 25 Hz en un MSX PAL y a 30 Hz en uno NTSC.
+
+El cartucho nunca llega a mirar la bandera de quinto sprite. Lee el registro de
+estado del VDP tres veces —en 0x4035, 0x405A y 0x409A— y las tres tira el valor:
+le sirve para reconocer la interrupción, no para enterarse de lo que se ha
+perdido.
 
 ## El plano de la mesa
 

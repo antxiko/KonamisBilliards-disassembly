@@ -106,6 +106,11 @@ Measuring the patterns themselves, a ball's drawing takes **ten pixels across by
 twelve down**. With the square pixel of a modern monitor —the top row— that is
 an oval, and it shows.
 
+Ten and twelve are **screen** pixels. The VDP's register 1 comes from 0x46BE and
+holds 0xE2: bit 1 set asks for 16×16 sprites, and bit 0 clear leaves **MAG = 0**,
+no magnification. Magnified, every pattern pixel would cover two on screen and
+the figures above would have to be doubled.
+
 The bottom row is the same drawing with each pixel painted **five across by four
 down**, which is the ratio usually attributed to an MSX pixel on a television of
 the period. The 10×12 becomes 50×48: round, to within 4 %.
@@ -141,6 +146,82 @@ would cost a multiplication per axis on every collision.
 
 It was pointed out by [theNestruo](https://github.com/theNestruo) in this
 repository's first issue.
+
+## Four sprites per scanline
+
+The TMS9918 has **thirty-two sprites** in its attribute table —here at VRAM
+0x3B00, which is what R5 = 0x76 asks for— but it only draws **four per
+scanline**. From the fifth on it drops them on that line and raises its
+fifth-sprite flag. X plays no part: a sprite counts on a line if that line falls
+inside its box, and with 16×16 and MAG = 0 the box is sixteen lines, Y+1 to
+Y+16. Sixteen, not the twelve a ball's drawing measures.
+
+Billiards uses eight of the thirty-two entries: the cue ball, the six numbered
+ones and the sight.
+
+### The opening triangle fits exactly
+
+![The opening triangle, with each sprite's box and the count per scanline](imagenes/sprites_por_linea.png)
+
+The eight starting positions are at 0x461F, four bytes each (Y, X, pattern,
+colour). Counting whole boxes:
+
+| lines | sprites | which |
+| --- | --- | --- |
+| 97-104 | 1 | the 4 |
+| 105-112 | 2 | the 2 and the 4 |
+| 113-120 | **4** | the cue ball, the 1, the 2 and the 5 |
+| 121-128 | **4** | the cue ball, the 1, the 3 and the 5 |
+| 129-136 | 3 | the 3, the 6 and the sight |
+| 137-144 | 2 | the 6 and the sight |
+
+Four at most, never five. And by a hair: the box of the 4, which starts at
+Y=0x60, ends on line 112, exactly where the boxes of the three that start at
+Y=0x70 begin. **One pixel** breaks the arrangement: the 3, which starts at
+Y=0x78, moved a single line up already puts five sprites on line 120.
+
+In the picture each ball carries its 16×16 box —the dashed square, which is what
+the VDP looks at— and the column on the right counts, line by line, how many
+sprites touch it, with the figure beside it; the lines where the count reaches
+four come out in red. It
+is drawn by `tools/sprites_por_linea.py` from the bytes of the ROM, and the same
+program hangs off `make sanity`: if any of these figures stopped coming out of
+the binary, the `make` would go red.
+
+### In play it goes over, and there is no way around it
+
+A ball's centre can only sit between Y=0x3E and Y=0xA1 —the two `sub` in
+`mueve_una_bola`, the `sub 03Eh` at 0x4ED4 and the `sub 064h` at 0x4ED6— so the
+boxes of the seven balls live in 115 lines, from 63 to 177. And between the seven
+they measure 7 × 16 = 112. Three lines to spare: two boxes overlapping is not the
+exception, it is what happens all the time. With five overlapping, the VDP draws
+four and swallows the fifth.
+
+The cartridge does not avoid it. What it does is make sure the one that is lost
+is not always the same one. `refresca_los_sprites` (0x463F) dumps the eight
+entries to VRAM in two groups of four, and **bit 0 of the frame counter decides
+which group goes first**:
+
+- the counter is 0xE003, and `avanza_el_juego` bumps it with the `inc (hl)` at
+  0x433A, once per interrupt;
+- the `rra` at 0x4651 carries that bit 0 into the carry flag and picks the half
+  it starts with;
+- the `rr c` at 0x465E pulls it out again for the second half, which is the other
+  one.
+
+On an even frame the order in the attribute table is cue-1-2-3-4-5-6-sight; on an
+odd one, 4-5-6-sight-cue-1-2-3. Since the VDP keeps the first four on the list
+that touch the line, the one that is lost changes every frame.
+
+An example. If the cue ball, the 1 and the 2 —first group— share a line with the
+4 and the 5 —second group—, the even frame draws cue, 1, 2 and 4, and swallows
+the 5; the odd one draws 4, 5, cue and 1, and swallows the 2. Neither disappears
+outright: both **flicker**, at 25 Hz on a PAL MSX and 30 Hz on an NTSC one.
+
+The cartridge never looks at the fifth-sprite flag. It reads the VDP status
+register three times —at 0x4035, 0x405A and 0x409A— and throws the value away
+all three: it is there to acknowledge the interrupt, not to find out what was
+lost.
 
 ## The table plan
 
