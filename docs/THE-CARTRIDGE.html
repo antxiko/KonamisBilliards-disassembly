@@ -112,6 +112,17 @@ A  B  INIT=0x405F</code></pre>
 <p>There is a second overlap, and a stranger one. The sprite patterns are copied from 0x4B30, which sits inside the table tiles: <b>the balls and the cloth drawings are the same bytes read two ways</b>.</p>
 <p><img src="imagenes/sprites.png" alt="The sprites"></p>
 <p>288 bytes are copied, enough for nine 16×16 sprites, but only eight are real drawings: the cue ball, the six numbered ones and the aiming dot. The ninth overruns the end and lands on the table&#x27;s compressed colours. Nothing uses it.</p>
+<h2 id="the-balls-are-not-round-and-that-is-why-they-look-round">The balls are not round, and that is why they look round</h2>
+<p><img src="imagenes/bolas_aspecto.png" alt="The balls with a square pixel and with the MSX one"></p>
+<p>Measuring the patterns themselves, a ball&#x27;s drawing takes <b>ten pixels across by twelve down</b>. With the square pixel of a modern monitor —the top row— that is an oval, and it shows.</p>
+<p>The bottom row is the same drawing with each pixel painted <b>five across by four down</b>, which is the ratio usually attributed to an MSX pixel on a television of the period. The 10×12 becomes 50×48: round, to within 4 %.</p>
+<p>The ratio that would make the balls <em>exactly</em> circular is 12/10, that is <b>6:5</b>, which falls between the two figures usually quoted for the MSX pixel. That one does come from the cartridge; what an MSX pixel is really worth depends on the television, and the binary does not say.</p>
+<p>The picture is drawn by <code>tools/graficos.py</code> from the bytes of the ROM.</p>
+<h3 id="and-does-the-code-take-it-into-account">And does the code take it into account?</h3>
+<p><b>No. The physics works 1:1</b>, and you can point at it:</p>
+<ul><li><code>busca_choques</code> (0x4F25) does its first sieve with <code>cp 00Ch</code> on the Y difference <b>and the very same <code>cp 00Ch</code></b> on the X one: twelve pixels on both axes;</li><li><code>resuelve_el_choque</code> (0x4F63) confirms with Pythagoras, and treats both components with the same instructions —the same four-bit shift, the same squaring— before adding them;</li><li><code>calcula_el_tiro</code> (0x4CA8) gets the distance to the aiming point the same way, dY and dX squared and the root;</li><li><code>saca_la_pendiente_del_vector</code> (0x5430) divides both components by 32 and compares, favouring neither;</li><li>and the sine and cosine tables are those of an isotropic space.</li></ul>
+<p>So the balls look round and behave as if the space were square. In practice that means <b>a ball covers more real distance per pixel vertically than horizontally</b>, and a 45° angle in the code does not look like 45° on screen. It is the solution of the period, and it is the cheap one: correcting the ratio would cost a multiplication per axis on every collision.</p>
+<p>It was pointed out by <a href="https://github.com/theNestruo">theNestruo</a> in this repository&#x27;s first issue.</p>
 <h2 id="the-table-plan">The table plan</h2>
 <p>The table is not stored as a screen of 768 tiles. At 0x4C59 there is a strip of groups, and each group is a number followed by a format B block: the number says how many consecutive rows carry that same drawing. The routine that unrolls it (0x4A39) draws the block and steps down 32 bytes at a time from row 7, reloading the pointer on each pass because the interpreter leaves it at the end. A zero closes the plan.</p>
 <p>Seven groups covering sixteen rows, from 7 to 22, in 79 bytes.</p>

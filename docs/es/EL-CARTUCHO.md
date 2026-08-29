@@ -100,6 +100,52 @@ dibujos de verdad: la bola blanca, las seis numeradas y el punto de la mira. El
 noveno se pasa del final y cae sobre los colores comprimidos de la mesa. No lo
 usa nadie.
 
+## Las bolas no son redondas, y por eso se ven redondas
+
+![Las bolas con el píxel cuadrado y con el del MSX](../imagenes/bolas_aspecto.png)
+
+Midiendo los propios patrones, el dibujo de una bola ocupa **diez píxeles de
+ancho por doce de alto**. Con el píxel cuadrado de un monitor de hoy —la fila de
+arriba— eso es un óvalo, y se nota.
+
+La fila de abajo es el mismo dibujo con cada píxel pintado **cinco de ancho por
+cuatro de alto**, que es la proporción que se le atribuye al píxel de un MSX en
+un televisor de la época. Los 10×12 pasan a ser 50×48: redondos, con un 4 % de
+diferencia.
+
+La proporción que dejaría las bolas *exactamente* circulares es 12/10, o sea
+**6:5**, que cae entre las dos cifras que se citan de costumbre para el píxel
+del MSX. Eso sí sale del cartucho; cuánto vale de verdad el píxel de un MSX
+depende del televisor, y el binario no lo dice.
+
+La imagen la dibuja `tools/graficos.py` desde los bytes de la ROM.
+
+### Y el código, ¿lo tiene en cuenta?
+
+**No. La física trabaja 1:1**, y se puede señalar con el dedo:
+
+- `busca_choques` (0x4F25) hace la primera criba con `cp 00Ch` sobre la
+  diferencia de Y **y el mismo `cp 00Ch`** sobre la de X: doce píxeles en los
+  dos ejes;
+- `resuelve_el_choque` (0x4F63) confirma con Pitágoras, y trata las dos
+  componentes con las mismas instrucciones —el mismo desplazamiento de cuatro
+  bits, el mismo cuadrado— antes de sumarlas;
+- `calcula_el_tiro` (0x4CA8) saca la distancia al punto de mira igual, dY y dX
+  al cuadrado y la raíz;
+- `saca_la_pendiente_del_vector` (0x5430) divide las dos componentes por 32 y
+  compara, sin favorecer a ninguna;
+- y las tablas de seno y coseno son las de un espacio isótropo.
+
+O sea que las bolas se ven redondas y se comportan como si el espacio fuera
+cuadrado. En la práctica eso quiere decir que **una bola cubre más distancia
+real por píxel en vertical que en horizontal**, y que un ángulo de 45° en el
+código no se ve como 45° en la pantalla. Es la solución de la época, y es la
+barata: corregir la proporción costaría una multiplicación por cada eje en cada
+choque.
+
+Lo apuntó [theNestruo](https://github.com/theNestruo) en la primera issue de
+este repositorio.
+
 ## El plano de la mesa
 
 La mesa no se guarda como una pantalla de 768 tiles. En 0x4C59 hay una tira de

@@ -284,6 +284,51 @@ def png_sprites(v, cuantos, fn, esc=3):
     png(w, h, px, fn)
 
 
+def png_bolas_y_su_forma(v, fn, esc=4):
+    """Las siete bolas dos veces: con el pixel cuadrado y con el del MSX.
+
+    Lo pregunto theNestruo en la issue 1 del repositorio, y la respuesta se ve
+    mejor dibujada que contada. El dibujo de una bola son DIEZ pixeles de ancho
+    por DOCE de alto -medido sobre los propios patrones, no estimado-, o sea un
+    ovalo claramente mas alto que ancho si cada pixel es un cuadrado.
+
+    Con el pixel del MSX no lo es. Aqui cada pixel se pinta como un rectangulo
+    de 5 de ancho por 4 de alto, la proporcion que se le atribuye al pixel de un
+    MSX en un televisor de la epoca, y entonces los 10x12 del dibujo salen
+    50x48: redondos con un 4 % de diferencia.
+
+    La proporcion que los dejaria EXACTAMENTE circulares es 12/10 = 1,2, o sea
+    6:5. Eso si sale del cartucho, y es lo unico que se afirma aqui: el resto
+    -cuanto vale de verdad el pixel de un MSX- depende del televisor y no lo
+    dice el binario.
+
+    Arriba la fila con el pixel cuadrado, abajo con el de 5:4. Las dos filas
+    tienen la misma altura para poder compararlas de un vistazo.
+    """
+    N = 7                                    # las siete bolas; el 7 es la mira
+    filas_esc = ((esc, esc), (esc + esc // 4, esc))     # (ancho, alto) del pixel
+    anchos = [16 * ax for ax, _ in filas_esc]
+    w = max(anchos) * N + (N + 1)
+    alto_fila = 16 * esc
+    h = 2 * alto_fila + 3
+    px = [[REJILLA] * w for _ in range(h)]
+    for fila, (ax, ay) in enumerate(filas_esc):
+        oy = 1 + fila * (alto_fila + 1)
+        hueco = (max(anchos) - 16 * ax) // 2
+        for i in range(N):
+            ox = 1 + i * (max(anchos) + 1) + hueco
+            for cuad, (dx, dy) in enumerate(((0, 0), (0, 8), (8, 0), (8, 8))):
+                for fy in range(8):
+                    linea = v.m[0x1800 + i * 32 + cuad * 8 + fy]
+                    for fx in range(8):
+                        p = PAL[15] if linea & (0x80 >> fx) else PAL[1]
+                        for ey in range(ay):
+                            y = oy + (dy + fy) * ay + ey
+                            x = ox + (dx + fx) * ax
+                            px[y][x:x + ax] = [p] * ax
+    png(w, h, px, fn)
+
+
 def png_rotulo(v, fn, esc=3):
     """El BILLIARDS grande, montado como lo monta 0x48B8: quince letras de dos
     tiles, la de arriba desde 0xC1 y la de abajo quince mas alla."""
@@ -327,9 +372,10 @@ def main(argv):
     png_tiles(v, 0, 0x80, 59, out + "/tiles.png")
     png_tiles(v, 0, 0x30, 48, out + "/fuente.png")
     png_sprites(v, 9, out + "/sprites.png")   # nueve: el ultimo no es un dibujo
+    png_bolas_y_su_forma(v, out + "/bolas_aspecto.png")
     png_rotulo(v, out + "/rotulo.png")
     png_logo_konami(v, out + "/logo_konami.png")
-    print("escritas 7 imagenes en %s/" % out)
+    print("escritas 8 imagenes en %s/" % out)
 
 
 if __name__ == "__main__":

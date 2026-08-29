@@ -98,6 +98,50 @@ drawings are the same bytes read two ways**.
 drawings: the cue ball, the six numbered ones and the aiming dot. The ninth
 overruns the end and lands on the table's compressed colours. Nothing uses it.
 
+## The balls are not round, and that is why they look round
+
+![The balls with a square pixel and with the MSX one](imagenes/bolas_aspecto.png)
+
+Measuring the patterns themselves, a ball's drawing takes **ten pixels across by
+twelve down**. With the square pixel of a modern monitor —the top row— that is
+an oval, and it shows.
+
+The bottom row is the same drawing with each pixel painted **five across by four
+down**, which is the ratio usually attributed to an MSX pixel on a television of
+the period. The 10×12 becomes 50×48: round, to within 4 %.
+
+The ratio that would make the balls *exactly* circular is 12/10, that is
+**6:5**, which falls between the two figures usually quoted for the MSX pixel.
+That one does come from the cartridge; what an MSX pixel is really worth depends
+on the television, and the binary does not say.
+
+The picture is drawn by `tools/graficos.py` from the bytes of the ROM.
+
+### And does the code take it into account?
+
+**No. The physics works 1:1**, and you can point at it:
+
+- `busca_choques` (0x4F25) does its first sieve with `cp 00Ch` on the Y
+  difference **and the very same `cp 00Ch`** on the X one: twelve pixels on both
+  axes;
+- `resuelve_el_choque` (0x4F63) confirms with Pythagoras, and treats both
+  components with the same instructions —the same four-bit shift, the same
+  squaring— before adding them;
+- `calcula_el_tiro` (0x4CA8) gets the distance to the aiming point the same way,
+  dY and dX squared and the root;
+- `saca_la_pendiente_del_vector` (0x5430) divides both components by 32 and
+  compares, favouring neither;
+- and the sine and cosine tables are those of an isotropic space.
+
+So the balls look round and behave as if the space were square. In practice that
+means **a ball covers more real distance per pixel vertically than
+horizontally**, and a 45° angle in the code does not look like 45° on screen. It
+is the solution of the period, and it is the cheap one: correcting the ratio
+would cost a multiplication per axis on every collision.
+
+It was pointed out by [theNestruo](https://github.com/theNestruo) in this
+repository's first issue.
+
 ## The table plan
 
 The table is not stored as a screen of 768 tiles. At 0x4C59 there is a strip of
